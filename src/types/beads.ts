@@ -13,6 +13,7 @@ export interface BeadsTaskMetadata {
   createdAt: string;
   status: BeadsTaskStatus;
   relatedCommits?: string[];
+  artifactDir?: string;
   labels?: string[];
   type?: BeadsTaskType;
   priority?: number;

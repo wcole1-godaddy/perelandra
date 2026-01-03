@@ -1,6 +1,5 @@
-import { $ } from 'bun';
 import { join, basename } from 'node:path';
-import { mkdirSync, existsSync, readdirSync } from 'node:fs';
+import { mkdirSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { eventBus } from '../core/events';
 import { logInfo, logError, logWarn } from '../logging/pino';
 import type { HnauManager } from './hnau';
@@ -282,10 +281,14 @@ export class Verifier {
       }
     }
 
+    // Copy screenshots to artifacts directory
+    const artifactPaths = this.copyScreenshotsToArtifacts(screenshotPaths, taskId);
+
     return {
       passed: overallPassed,
       exitCode: lastExitCode,
       screenshotPaths,
+      artifactPaths,
       logPath: logPaths[0] ?? logDir,
     };
   }
@@ -333,6 +336,48 @@ export class Verifier {
     }
 
     return logDir;
+  }
+
+  private ensureArtifactDir(taskId: string): string {
+    const repoRoot = this.config.repoRoot ?? '.';
+    const baseDir = repoRoot.startsWith('/') ? repoRoot : join(process.cwd(), repoRoot);
+    const artifactDir = join(baseDir, '.perelandra', 'artifacts', taskId);
+
+    if (!existsSync(artifactDir)) {
+      mkdirSync(artifactDir, { recursive: true });
+    }
+
+    return artifactDir;
+  }
+
+  private copyScreenshotsToArtifacts(
+    screenshotPaths: string[],
+    taskId: string
+  ): string[] {
+    if (screenshotPaths.length === 0) {
+      return [];
+    }
+
+    const artifactDir = this.ensureArtifactDir(taskId);
+    const copiedPaths: string[] = [];
+
+    for (const srcPath of screenshotPaths) {
+      try {
+        const fileName = basename(srcPath);
+        const destPath = join(artifactDir, fileName);
+        copyFileSync(srcPath, destPath);
+        copiedPaths.push(destPath);
+        logInfo('Copied screenshot to artifacts', { srcPath, destPath });
+      } catch (err) {
+        logWarn('Failed to copy screenshot', { srcPath, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    return copiedPaths;
+  }
+
+  getArtifactDir(taskId: string): string {
+    return this.ensureArtifactDir(taskId);
   }
 
   private buildResult(

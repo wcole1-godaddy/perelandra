@@ -140,6 +140,10 @@ export class BeadsManager {
     return this.updateTask(id, { labels });
   }
 
+  async addArtifactLabel(id: string, artifactDir: string): Promise<BeadsResult> {
+    return this.updateTask(id, { labels: [`artifact:${artifactDir}`] });
+  }
+
   async getTask(id: string): Promise<BeadsResult<BeadsTaskMetadata>> {
     try {
       const output = await $`bd show ${id} --json`.cwd(this.cwd).json();
@@ -402,8 +406,8 @@ export class BeadsManager {
     const obj = output as Record<string, unknown>;
     const rawLabels = Array.isArray(obj.labels) ? obj.labels.map(String) : [];
 
-    // Extract fieldName, hnauId, and commits from labels
-    const { fieldName, hnauId, commits, labels } = this.extractMetadataFromLabels(rawLabels);
+    // Extract fieldName, hnauId, commits, and artifactDir from labels
+    const { fieldName, hnauId, commits, artifactDir, labels } = this.extractMetadataFromLabels(rawLabels);
 
     // Merge commits from labels with any existing relatedCommits
     const existingCommits = Array.isArray(obj.relatedCommits)
@@ -422,6 +426,7 @@ export class BeadsManager {
       status: this.normalizeStatus(obj.status),
       labels: labels.length > 0 ? labels : undefined,
       relatedCommits: allCommits.length > 0 ? allCommits : undefined,
+      artifactDir: artifactDir ?? (obj.artifactDir ? String(obj.artifactDir) : undefined),
       type: this.normalizeType(obj.issue_type ?? obj.type),
       priority: typeof obj.priority === 'number' ? obj.priority : undefined,
     };
@@ -431,10 +436,12 @@ export class BeadsManager {
     fieldName: string | undefined;
     hnauId: string | undefined;
     commits: string[];
+    artifactDir: string | undefined;
     labels: string[];
   } {
     let fieldName: string | undefined;
     let hnauId: string | undefined;
+    let artifactDir: string | undefined;
     const commits: string[] = [];
     const remainingLabels: string[] = [];
 
@@ -445,12 +452,14 @@ export class BeadsManager {
         hnauId = label.slice(5);
       } else if (label.startsWith('commit:')) {
         commits.push(label.slice(7));
+      } else if (label.startsWith('artifact:')) {
+        artifactDir = label.slice(9);
       } else {
         remainingLabels.push(label);
       }
     }
 
-    return { fieldName, hnauId, commits, labels: remainingLabels };
+    return { fieldName, hnauId, commits, artifactDir, labels: remainingLabels };
   }
 
   private parseTaskListOutput(

@@ -521,6 +521,11 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
     setState((prev) => ({ ...prev, tasksViewMode: mode }));
   }, []);
 
+  const handleClearEpicFilter = useCallback(() => {
+    setState((prev) => ({ ...prev, filteredEpicId: null }));
+    addLog('[EPIC] Cleared epic filter');
+  }, [addLog]);
+
   const handleEpicViewTasks = useCallback((epicId: string) => {
     setState((prev) => ({
       ...prev,

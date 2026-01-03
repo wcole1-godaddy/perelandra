@@ -9,6 +9,7 @@ export interface UiTestResult {
   passed: boolean;
   exitCode: number;
   screenshotPaths: string[];
+  artifactPaths: string[];
   logPath: string;
 }
 

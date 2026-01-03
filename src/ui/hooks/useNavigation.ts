@@ -33,11 +33,12 @@ export interface UseNavigationOptions {
   onTaskAction?: (action: TaskAction, index: number) => void;
   onToggleTasksView?: () => void;
   onShowEpicGraph?: (index: number) => void;
+  onClearEpicFilter?: () => void;
   disabled?: boolean;
 }
 
 export function useNavigation(options: UseNavigationOptions): NavigationHandlers {
-  const { panes, itemCounts, onEnter, onAction, onHnauAction, onEldilAction, onTaskAction, onToggleTasksView, onShowEpicGraph, disabled = false } = options;
+  const { panes, itemCounts, onEnter, onAction, onHnauAction, onEldilAction, onTaskAction, onToggleTasksView, onShowEpicGraph, onClearEpicFilter, disabled = false } = options;
 
   const [focusedPane, setFocusedPane] = useState<FocusPane>(panes[0] ?? 'tasks');
   const [selectedIndices, setSelectedIndices] = useState<Map<FocusPane, number>>(
@@ -184,6 +185,10 @@ export function useNavigation(options: UseNavigationOptions): NavigationHandlers
       }
       if (event.name === 'g' && onShowEpicGraph) {
         onShowEpicGraph(selectedIndex);
+        return;
+      }
+      if (event.name === 'escape' && onClearEpicFilter) {
+        onClearEpicFilter();
         return;
       }
     }

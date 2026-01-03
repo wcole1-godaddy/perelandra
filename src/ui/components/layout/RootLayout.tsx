@@ -22,10 +22,11 @@ export interface RootLayoutProps {
   onTaskAction?: (action: TaskAction, taskId: string) => void;
   onViewModeChange?: (mode: TasksViewMode) => void;
   onEpicSelect?: (epicId: string) => void;
+  onClearEpicFilter?: () => void;
   navigationDisabled?: boolean;
 }
 
-export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauAction, onEldilAction, onTaskAction, onViewModeChange, onEpicSelect, navigationDisabled = false }: RootLayoutProps): React.ReactNode {
+export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauAction, onEldilAction, onTaskAction, onViewModeChange, onEpicSelect, onClearEpicFilter, navigationDisabled = false }: RootLayoutProps): React.ReactNode {
   const { width, height } = useTerminalDimensions();
 
   const panes: FocusPane[] = ['hnau', 'tasks', 'eldila'];
@@ -105,6 +106,11 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauActi
         if (epic) {
           onEpicSelect(epic.epic.id);
         }
+      }
+    },
+    onClearEpicFilter: () => {
+      if (onClearEpicFilter) {
+        onClearEpicFilter();
       }
     },
     disabled: navigationDisabled,
