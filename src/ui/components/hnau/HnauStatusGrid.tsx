@@ -77,7 +77,7 @@ export function HnauStatusGrid({
       {hnauRuntimes.length === 0 ? (
         <text fg={theme.textMuted}>No services configured</text>
       ) : (
-        <box style={{ flexDirection: 'column', flexGrow: 1 }}>
+        <box style={{ flexDirection: 'column' }}>
           {hnauRuntimes.map((runtime, idx) => {
             const icon = getStatusIcon(runtime.status);
             const color = getStatusColor(runtime.status);
@@ -117,6 +117,11 @@ export function HnauStatusGrid({
           })}
         </box>
       )}
+
+      {/* Perelandra Globe - fills remaining space */}
+      <box style={{ flexGrow: 1, marginTop: 1 }}>
+        <PerelandraGlobe width={width - 4} height={16} />
+      </box>
 
       {/* Footer keybinds */}
       <box style={{ marginTop: 1, flexDirection: 'row', gap: 1 }}>

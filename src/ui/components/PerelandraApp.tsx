@@ -471,6 +471,26 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
     [oyarsa, addLog]
   );
 
+  const handleSendEldilInput = useCallback(
+    async (eldilId: string, input: string) => {
+      if (!oyarsa) return;
+
+      const eldil = state.eldila.find((e) => e.id === eldilId);
+      if (!eldil?.process?.tmuxPane) {
+        addLog(`[ERROR] Cannot send input to ${eldilId}: no tmux pane`);
+        return;
+      }
+
+      const [windowName, paneIndexStr] = eldil.process.tmuxPane.split('.');
+      const paneIndex = parseInt(paneIndexStr, 10);
+
+      const tmux = oyarsa.getTmuxManager();
+      await tmux.sendKeys({ window: windowName, pane: paneIndex }, input);
+      addLog(`[ELDIL] Sent input to ${eldilId}`);
+    },
+    [oyarsa, state.eldila, addLog]
+  );
+
   const handleSpawnEldil = useCallback(
     async (data: NewEldilData) => {
       if (!oyarsa) {
@@ -646,6 +666,20 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
     [repoRoot, addLog]
   );
 
+  const handleSwitchToGrid = useCallback(async () => {
+    if (!state.tmuxAvailable) {
+      addLog('[WARN] Cannot switch to grid: not running in tmux');
+      return;
+    }
+    const tmux = oyarsa?.getTmuxManager() ?? new TmuxManager();
+    const result = await tmux.selectWindow(tmux.getEldilaGridWindowName());
+    if (result.success) {
+      addLog('[TMUX] Switched to eldila grid view');
+    } else {
+      addLog(`[ERROR] Failed to switch to grid: ${result.error}`);
+    }
+  }, [state.tmuxAvailable, oyarsa, addLog]);
+
   const commands = useMemo(
     () =>
       createDefaultCommands({
@@ -670,6 +704,18 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
     }
     if (event.name === 'q' && !state.showCommandPalette) {
       handleQuit();
+    }
+    // 'g' to switch to eldila grid view (when not in dialogs)
+    if (
+      event.name === 'g' &&
+      !state.showCommandPalette &&
+      !state.showNewTaskDialog &&
+      !state.showNewEldilDialog &&
+      !state.showEldilDetailDialog &&
+      !state.showTaskDetailDialog &&
+      !state.showEpicDetailDialog
+    ) {
+      handleSwitchToGrid();
     }
   });
 
@@ -715,6 +761,7 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         eldil={state.eldila.find((e) => e.id === state.selectedEldilId) ?? null}
         onClose={closeEldilDetailDialog}
         onStop={handleStopEldil}
+        onSendInput={handleSendEldilInput}
       />
       <TaskDetailDialog
         isOpen={state.showTaskDetailDialog}

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useKeyboard } from '@opentui/react';
 import { Dialog } from '../common/Dialog';
 import type { EldilRuntime, EldilStatus } from '../../../types/eldil';
 import { theme } from '../../theme';
@@ -9,6 +10,7 @@ export interface EldilDetailDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onStop: (eldilId: string) => void;
+  onSendInput: (eldilId: string, input: string) => void;
 }
 
 function getStatusIcon(status: EldilStatus): string {
@@ -74,6 +76,21 @@ function formatTimestamp(ts: string): string {
   } catch {
     return ts;
   }
+}
+
+function cleanTerminalOutput(text: string): string {
+  return text
+    // Remove ANSI escape sequences
+    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+    // Remove box-drawing characters
+    .replace(/[│┃┆┇┊┋╎╏║┌┍┎┏┐┑┒┓└┕┖┗┘┙┚┛├┝┞┟┠┡┢┣┤┥┦┧┨┩┪┫┬┭┮┯┰┱┲┳┴┵┶┷┸┹┺┻┼┽┾┿╀╁╂╃╄╅╆╇╈╉╊╋╌╍╴╵╶╷─━┄┅┈┉╭╮╯╰]/g, ' ')
+    // Collapse multiple spaces
+    .replace(/  +/g, ' ')
+    // Trim each line
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .join('\n');
 }
 
 type OutputType = 'text' | 'tool_use' | 'tool_result' | 'error' | 'complete' | 'json';
@@ -147,12 +164,52 @@ export function EldilDetailDialog({
   eldil,
   isOpen,
   onClose,
+  onSendInput,
 }: EldilDetailDialogProps): React.ReactNode {
+  const [inputText, setInputText] = useState('');
+  const [inputFocused, setInputFocused] = useState(false);
+
   const { output: paneOutput, error: paneError } = usePaneOutput({
     tmuxPane: eldil?.process?.tmuxPane,
     enabled: isOpen && eldil?.state.status === 'running' && !!eldil?.process?.tmuxPane,
     pollIntervalMs: 500,
     lines: 50,
+  });
+
+  const handleSendInput = () => {
+    if (!eldil || !inputText.trim()) return;
+    onSendInput(eldil.id, inputText.trim());
+    setInputText('');
+  };
+
+  useKeyboard((event) => {
+    if (!isOpen || !eldil) return;
+
+    // Toggle input focus with 'i'
+    if (!inputFocused && event.name === 'i') {
+      setInputFocused(true);
+      return;
+    }
+
+    // Handle input mode
+    if (inputFocused) {
+      if (event.name === 'escape') {
+        setInputFocused(false);
+        return;
+      }
+      if (event.name === 'return') {
+        handleSendInput();
+        return;
+      }
+      if (event.name === 'backspace') {
+        setInputText((prev) => prev.slice(0, -1));
+        return;
+      }
+      if (event.sequence && event.sequence.length === 1 && !event.ctrl && !event.meta) {
+        setInputText((prev) => prev + event.sequence);
+        return;
+      }
+    }
   });
 
   if (!eldil) return null;
@@ -168,9 +225,19 @@ export function EldilDetailDialog({
       onClose={onClose}
       title={`Eldil: ${eldil.id}`}
       size="large"
-      footerHints={[
-        { key: 'esc', label: 'close' },
-      ]}
+      footerHints={
+        inputFocused
+          ? [
+              { key: '↵', label: 'send' },
+              { key: 'esc', label: 'cancel input' },
+            ]
+          : hasTmuxOutput
+            ? [
+                { key: 'i', label: 'input' },
+                { key: 'esc', label: 'close' },
+              ]
+            : [{ key: 'esc', label: 'close' }]
+      }
     >
       <scrollbox style={{ flexGrow: 1 }}>
         {/* Status & Tool */}
@@ -272,7 +339,7 @@ export function EldilDetailDialog({
               {paneError ? (
                 <text fg={theme.statusError}>{paneError}</text>
               ) : paneOutput ? (
-                paneOutput.split('\n').slice(-20).map((line, idx) => (
+                cleanTerminalOutput(paneOutput).split('\n').slice(-20).map((line, idx) => (
                   <text key={idx} fg={theme.text}>{line}</text>
                 ))
               ) : (
@@ -315,6 +382,32 @@ export function EldilDetailDialog({
                   );
                 })
               )}
+            </box>
+          </box>
+        )}
+
+        {/* Input box for running eldila */}
+        {hasTmuxOutput && (
+          <box style={{ marginTop: 2, flexDirection: 'column' }}>
+            <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+              <text fg={inputFocused ? theme.primary : theme.textMuted}>
+                {inputFocused ? '▸ ' : '  '}Send to Eldil:
+              </text>
+            </box>
+            <box
+              style={{
+                backgroundColor: inputFocused ? theme.backgroundElement : undefined,
+                borderStyle: inputFocused ? 'single' : undefined,
+                borderColor: inputFocused ? theme.primary : undefined,
+                paddingLeft: 1,
+                paddingRight: 1,
+                minHeight: 1,
+              }}
+            >
+              <text fg={inputText ? theme.text : theme.textMuted}>
+                {inputText || (inputFocused ? '' : 'Press i to type...')}
+                {inputFocused ? '▌' : ''}
+              </text>
             </box>
           </box>
         )}

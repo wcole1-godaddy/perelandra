@@ -182,6 +182,7 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauActi
         eldilCount={filteredEldila.length}
         height={statusBarHeight}
         themeFlavor={state.themeFlavor}
+        tmuxAvailable={state.tmuxAvailable}
       />
     </box>
   );

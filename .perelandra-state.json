@@ -7,7 +7,8 @@
       "branch": "main",
       "hnauStatuses": {},
       "activeEldila": [
-        "eldil-1"
+        "eldil-1",
+        "eldil-2"
       ]
     },
     "baseline": {
@@ -32,12 +33,49 @@
       "id": "eldil-1",
       "fieldName": "main",
       "fieldPath": "/Users/wcole1/GoDaddy/perelandra",
-      "status": "running",
-      "startedAt": "2026-01-03T19:14:41.950Z",
-      "updatedAt": "2026-01-03T19:14:41.950Z",
+      "status": "error",
+      "startedAt": "2026-01-03T19:30:18.330Z",
+      "updatedAt": "2026-01-03T19:35:03.663Z",
       "tmuxPane": "field-main.2",
-      "initialPrompt": "Tell me something about this codebase",
-      "tool": "amp"
+      "initialPrompt": "[Recovered orphan - original prompt unknown]",
+      "tool": "amp",
+      "lastError": "Orphaned after restart"
+    },
+    "eldil-2": {
+      "id": "eldil-2",
+      "fieldName": "main",
+      "fieldPath": "/Users/wcole1/GoDaddy/perelandra",
+      "status": "error",
+      "startedAt": "2026-01-03T19:30:38.846Z",
+      "updatedAt": "2026-01-03T19:35:03.668Z",
+      "tmuxPane": "field-main.3",
+      "initialPrompt": "tell me something neat",
+      "tool": "amp",
+      "lastError": "Orphaned after restart"
+    },
+    "eldil-3": {
+      "id": "eldil-3",
+      "fieldName": "main",
+      "fieldPath": "/Users/wcole1/GoDaddy/perelandra",
+      "status": "error",
+      "startedAt": "2026-01-03T19:35:18.012Z",
+      "updatedAt": "2026-01-03T19:45:25.872Z",
+      "tmuxPane": "field-main.1",
+      "initialPrompt": "testing something what can you tell me about this codebase",
+      "tool": "amp",
+      "lastError": "Marked stuck by Witness"
+    },
+    "eldil-4": {
+      "id": "eldil-4",
+      "fieldName": "main",
+      "fieldPath": "/Users/wcole1/GoDaddy/perelandra",
+      "status": "error",
+      "startedAt": "2026-01-03T19:38:04.689Z",
+      "updatedAt": "2026-01-03T19:48:25.879Z",
+      "tmuxPane": "field-main.2",
+      "initialPrompt": "tell me about this codebase",
+      "tool": "amp",
+      "lastError": "Marked stuck by Witness"
     }
   }
 }

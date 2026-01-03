@@ -174,49 +174,42 @@ export class EldilManager {
       return { success: false, error: 'Tmux manager not configured' };
     }
 
-    const windowName = `field-${options.fieldName}`;
-    const cmd = this.buildCommand(runtime.config, options.prompt);
+    const cmd = this.buildCommand(runtime.config);
 
-    const windowResult = await this.tmux.ensureFieldWindow(options.fieldName, options.fieldPath);
-    if (!windowResult.success) {
-      return { success: false, error: windowResult.error };
-    }
-
-    const paneResult = await this.tmux.splitPane(windowName, {
+    // Spawn in the shared eldila-grid window with tiled layout
+    const paneResult = await this.tmux.spawnEldilPane(runtime.id, cmd, {
       cwd: options.fieldPath,
-      vertical: true,
     });
 
-    if (!paneResult.success) {
-      return { success: false, error: paneResult.error };
+    if (!paneResult.success || !paneResult.data) {
+      return { success: false, error: paneResult.error ?? 'Failed to spawn pane' };
     }
 
-    const paneIndex = paneResult.data ?? 0;
+    const paneId = paneResult.data;
+    const gridWindow = this.tmux.getEldilaGridWindowName();
+
     runtime.process = {
       startedAt: new Date().toISOString(),
-      tmuxPane: `${windowName}.${paneIndex}`,
+      tmuxPane: paneId,
     };
 
-    await this.tmux.setPaneTitle(windowName, paneIndex, runtime.id);
+    // Small delay to let the tool start before sending the prompt
+    await new Promise(resolve => setTimeout(resolve, 200));
 
-    await this.tmux.sendKeys(
-      { window: windowName, pane: paneIndex },
-      cmd
-    );
+    // Send the initial prompt to the now-running tool
+    await this.tmux.sendKeysToPane(paneId, options.prompt);
 
     return { success: true };
   }
 
-  private buildCommand(config: EldilConfig, prompt: string): string {
-    const escapedPrompt = prompt.replace(/'/g, "'\\''");
-
+  private buildCommand(config: EldilConfig): string {
     if (config.tool === 'amp') {
-      const flags: string[] = ['--execute', '--stream-json'];
-      return `echo '${escapedPrompt}' | amp ${flags.join(' ')}`;
+      // Interactive mode - no --execute, allows user to attach and interact
+      return 'amp';
     } else if (config.tool === 'opencode') {
       const flags: string[] = ['-q'];
       if (config.model) flags.push('-m', config.model);
-      return `opencode ${flags.join(' ')} -p '${escapedPrompt}'`;
+      return `opencode ${flags.join(' ')}`;
     }
 
     return `echo "Unknown tool: ${config.tool}"`;
@@ -559,6 +552,11 @@ Your job is to continue from where the previous Eldil left off, preserving inten
     try {
       if (runtime.process?.pid) {
         process.kill(runtime.process.pid, 'SIGTERM');
+      }
+
+      // Kill the tmux pane if it exists
+      if (this.tmux && runtime.process?.tmuxPane) {
+        await this.tmux.killEldilPane(id);
       }
 
       runtime.state.status = 'completed';

@@ -8,9 +8,10 @@ export interface StatusBarProps {
   eldilCount?: number;
   height: number;
   themeFlavor?: ThemeFlavorName;
+  tmuxAvailable?: boolean;
 }
 
-export function StatusBar({ activeField, hnauCount, taskCount, eldilCount = 0, height, themeFlavor }: StatusBarProps): React.ReactNode {
+export function StatusBar({ activeField, hnauCount, taskCount, eldilCount = 0, height, themeFlavor, tmuxAvailable = false }: StatusBarProps): React.ReactNode {
   const themeLabel = themeFlavor ? flavors[themeFlavor].name : '';
   
   return (
@@ -49,9 +50,17 @@ export function StatusBar({ activeField, hnauCount, taskCount, eldilCount = 0, h
           </box>
         )}
       </box>
-      <box style={{ flexDirection: 'row', gap: 1 }}>
-        <text fg={theme.primary}>★</text>
-        <text fg={theme.textMuted}>perelandra v0.1.0</text>
+      <box style={{ flexDirection: 'row', gap: 2 }}>
+        {tmuxAvailable && (
+          <box style={{ flexDirection: 'row', gap: 1 }}>
+            <text fg={theme.accent}>g</text>
+            <text fg={theme.textMuted}>=grid</text>
+          </box>
+        )}
+        <box style={{ flexDirection: 'row', gap: 1 }}>
+          <text fg={theme.primary}>★</text>
+          <text fg={theme.textMuted}>perelandra v0.1.0</text>
+        </box>
       </box>
     </box>
   );

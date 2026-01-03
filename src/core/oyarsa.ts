@@ -128,10 +128,21 @@ export class Oyarsa {
     }
 
     const sessionResult = await this.tmuxManager.createSession({ detached: true });
-    if (sessionResult.success) {
-      logInfo('Tmux session ready', { session: this.tmuxManager.getSessionName() });
-    } else {
+    if (!sessionResult.success) {
       logWarn('Failed to create tmux session', { error: sessionResult.error });
+      return;
+    }
+
+    logInfo('Tmux session ready', { session: this.tmuxManager.getSessionName() });
+
+    const gridResult = await this.tmuxManager.ensureGridLayout();
+    if (gridResult.success) {
+      logInfo('Tmux grid layout ready', {
+        oyarsaWindow: this.tmuxManager.getOyarsaWindowName(),
+        gridWindow: this.tmuxManager.getEldilaGridWindowName(),
+      });
+    } else {
+      logWarn('Failed to set up grid layout', { error: gridResult.error });
     }
   }
 
@@ -271,58 +282,104 @@ export class Oyarsa {
   private async discoverOrphanPanes(knownPanes: Set<string>): Promise<EldilState[]> {
     const orphans: EldilState[] = [];
 
-    const windowsResult = await this.tmuxManager.listWindows();
-    if (!windowsResult.success || !windowsResult.data) {
-      return orphans;
-    }
-
-    for (const window of windowsResult.data) {
-      if (!window.name.startsWith('field-')) {
-        continue;
-      }
-
-      const fieldName = window.name.replace('field-', '');
-      const panesResult = await this.tmuxManager.listPanes(window.index);
-      if (!panesResult.success || !panesResult.data) {
-        continue;
-      }
-
-      for (const pane of panesResult.data) {
-        const tmuxPane = `${window.name}.${pane.index}`;
-
-        if (knownPanes.has(tmuxPane)) {
+    // First, check the eldila-grid window for tagged panes
+    const gridWindowName = this.tmuxManager.getEldilaGridWindowName();
+    const gridPanesResult = await this.tmuxManager.listGridPanes(gridWindowName);
+    
+    if (gridPanesResult.success && gridPanesResult.data) {
+      for (const pane of gridPanesResult.data) {
+        if (!pane.eldilId) {
           continue;
         }
 
-        if (!pane.title?.startsWith('eldil-')) {
+        if (knownPanes.has(pane.paneId)) {
           continue;
         }
 
-        const eldilId = pane.title;
-        logInfo('Discovered orphan eldil pane', {
-          eldilId,
-          tmuxPane,
-          fieldName,
+        // Check if we already have this eldil in state
+        const existingEldil = this.stateManager.getEldil(pane.eldilId);
+        if (existingEldil) {
+          continue;
+        }
+
+        logInfo('Discovered orphan eldil pane in grid', {
+          eldilId: pane.eldilId,
+          paneId: pane.paneId,
         });
 
-        const field = this.stateManager.getField(fieldName);
+        const activeField = this.stateManager.getActiveField();
+        const field = this.stateManager.getField(activeField);
         const now = new Date().toISOString();
 
         const orphanState: EldilState = {
-          id: eldilId,
-          fieldName,
+          id: pane.eldilId,
+          fieldName: activeField,
           fieldPath: field?.path ?? this.repoRoot,
           status: 'running',
           startedAt: now,
           updatedAt: now,
-          tmuxPane,
+          tmuxPane: pane.paneId,
           initialPrompt: '[Recovered orphan - original prompt unknown]',
           tool: 'amp',
         };
 
-        this.stateManager.setEldil(eldilId, orphanState);
+        this.stateManager.setEldil(pane.eldilId, orphanState);
         await this.reattachEldil(orphanState);
         orphans.push(orphanState);
+      }
+    }
+
+    // Also check legacy field-* windows for backwards compatibility
+    const windowsResult = await this.tmuxManager.listWindows();
+    if (windowsResult.success && windowsResult.data) {
+      for (const window of windowsResult.data) {
+        if (!window.name.startsWith('field-')) {
+          continue;
+        }
+
+        const fieldName = window.name.replace('field-', '');
+        const panesResult = await this.tmuxManager.listPanes(window.index);
+        if (!panesResult.success || !panesResult.data) {
+          continue;
+        }
+
+        for (const pane of panesResult.data) {
+          const tmuxPane = `${window.name}.${pane.index}`;
+
+          if (knownPanes.has(tmuxPane)) {
+            continue;
+          }
+
+          if (!pane.title?.startsWith('eldil-')) {
+            continue;
+          }
+
+          const eldilId = pane.title;
+          logInfo('Discovered orphan eldil pane in field window', {
+            eldilId,
+            tmuxPane,
+            fieldName,
+          });
+
+          const field = this.stateManager.getField(fieldName);
+          const now = new Date().toISOString();
+
+          const orphanState: EldilState = {
+            id: eldilId,
+            fieldName,
+            fieldPath: field?.path ?? this.repoRoot,
+            status: 'running',
+            startedAt: now,
+            updatedAt: now,
+            tmuxPane,
+            initialPrompt: '[Recovered orphan - original prompt unknown]',
+            tool: 'amp',
+          };
+
+          this.stateManager.setEldil(eldilId, orphanState);
+          await this.reattachEldil(orphanState);
+          orphans.push(orphanState);
+        }
       }
     }
 
