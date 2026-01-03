@@ -107,7 +107,60 @@ program
   .command('status')
   .description('Show non-interactive status summary')
   .action(async () => {
-    console.log('TODO: Show status');
+    try {
+      const { config } = await loadConfig();
+      const repoRootResult = await getRepoRoot();
+      if (!repoRootResult.success || !repoRootResult.data) {
+        console.error('Error:', repoRootResult.error);
+        process.exit(1);
+      }
+
+      const { FieldManager } = await import('../domain/field');
+      const { BeadsManager } = await import('../domain/beads');
+
+      const fieldManager = new FieldManager(config, repoRootResult.data);
+      const beadsRoot = config.beads?.root ?? `${repoRootResult.data}/.beads`;
+      const beads = new BeadsManager(beadsRoot, repoRootResult.data);
+      const tmux = new TmuxManager();
+
+      console.log('⚡ Perelandra Status\n');
+
+      const fieldsResult = await fieldManager.list();
+      if (fieldsResult.success && fieldsResult.data) {
+        console.log(`Fields (${fieldsResult.data.length}):`);
+        for (const field of fieldsResult.data) {
+          const icon = field.exists ? '●' : '○';
+          console.log(`  ${icon} ${field.name} (${field.branch})`);
+        }
+      }
+
+      console.log(`\nHnau (${config.hnau.length}):`);
+      for (const hnau of config.hnau) {
+        console.log(`  ○ ${hnau.id}${hnau.port ? ` :${hnau.port}` : ''}`);
+      }
+
+      const tasksResult = await beads.listTasks({ status: 'in-progress' });
+      if (tasksResult.success && tasksResult.data) {
+        console.log(`\nIn-Progress Tasks (${tasksResult.data.length}):`);
+        for (const task of tasksResult.data.slice(0, 5)) {
+          console.log(`  ● ${task.id}: ${task.title}`);
+        }
+        if (tasksResult.data.length > 5) {
+          console.log(`  ... and ${tasksResult.data.length - 5} more`);
+        }
+      }
+
+      const tmuxAvailable = await tmux.isTmuxAvailable();
+      const sessionExists = tmuxAvailable && await tmux.sessionExists();
+      console.log(`\nTmux: ${tmuxAvailable ? (sessionExists ? '● session active' : '○ available') : '✗ not available'}`);
+    } catch (err) {
+      if (isPerelandraError(err)) {
+        console.error(formatError(err));
+      } else {
+        console.error(err instanceof Error ? err.message : err);
+      }
+      process.exit(1);
+    }
   });
 
 program.addCommand(createFieldCommand());
