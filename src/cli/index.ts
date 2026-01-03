@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
 import { loadConfig, validateConfig, formatConfigError } from '../core/config';
+import { createFieldCommand } from './commands/field';
+import { createHnauCommand } from './commands/hnau';
 
 const program = new Command();
 
@@ -16,9 +18,9 @@ program
     console.log('TODO: Initialize configuration');
   });
 
-program
-  .command('config')
-  .description('Configuration management')
+const configCmd = program.command('config').description('Configuration management');
+
+configCmd
   .command('validate')
   .description('Validate the .perelandra.yaml configuration')
   .action(async () => {
@@ -58,74 +60,8 @@ program
     console.log('TODO: Show status');
   });
 
-const fieldCmd = program
-  .command('field')
-  .description('Manage Fields (git worktrees)');
-
-fieldCmd
-  .command('list')
-  .description('List all Fields')
-  .action(async () => {
-    console.log('TODO: List fields');
-  });
-
-fieldCmd
-  .command('create <name>')
-  .description('Create a new Field')
-  .option('--from-branch <branch>', 'Base branch for the worktree')
-  .action(async (name: string, options: { fromBranch?: string }) => {
-    console.log(`TODO: Create field ${name} from ${options.fromBranch ?? 'current branch'}`);
-  });
-
-fieldCmd
-  .command('delete <name>')
-  .description('Delete a Field')
-  .option('--force', 'Force delete even if uncommitted changes')
-  .action(async (name: string, options: { force?: boolean }) => {
-    console.log(`TODO: Delete field ${name}${options.force ? ' (forced)' : ''}`);
-  });
-
-fieldCmd
-  .command('switch <name>')
-  .description('Switch to a Field')
-  .action(async (name: string) => {
-    console.log(`TODO: Switch to field ${name}`);
-  });
-
-const hnauCmd = program
-  .command('hnau')
-  .description('Manage Hnau (services)');
-
-hnauCmd
-  .command('list')
-  .description('List all Hnau')
-  .action(async () => {
-    console.log('TODO: List hnau');
-  });
-
-hnauCmd
-  .command('status')
-  .description('Show Hnau status')
-  .option('--field <name>', 'Field context')
-  .action(async (options: { field?: string }) => {
-    console.log(`TODO: Show hnau status${options.field ? ` for field ${options.field}` : ''}`);
-  });
-
-hnauCmd
-  .command('start <hnauId>')
-  .description('Start a Hnau')
-  .option('--field <name>', 'Field context')
-  .action(async (hnauId: string, _options: { field?: string }) => {
-    console.log(`TODO: Start hnau ${hnauId}`);
-  });
-
-hnauCmd
-  .command('stop <hnauId>')
-  .description('Stop a Hnau')
-  .option('--field <name>', 'Field context')
-  .action(async (hnauId: string, _options: { field?: string }) => {
-    console.log(`TODO: Stop hnau ${hnauId}`);
-  });
+program.addCommand(createFieldCommand());
+program.addCommand(createHnauCommand());
 
 const taskCmd = program
   .command('task')
@@ -254,10 +190,11 @@ tmuxCmd
     console.log('TODO: Attach to tmux session');
   });
 
-tmuxCmd
-  .command('layout')
-  .description('Repair tmux layout')
+const tmuxLayoutCmd = tmuxCmd.command('layout').description('Tmux layout management');
+
+tmuxLayoutCmd
   .command('repair')
+  .description('Repair tmux layout')
   .action(async () => {
     console.log('TODO: Repair tmux layout');
   });
