@@ -8,7 +8,7 @@ export interface BeadsTaskMetadata {
   title: string;
   description?: string;
   fieldName: string;
-  hnauId?: string;
+  hnauIds?: string[];
   createdBy: BeadsTaskCreator;
   createdAt: string;
   status: BeadsTaskStatus;

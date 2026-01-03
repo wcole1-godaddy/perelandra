@@ -52,9 +52,9 @@ function TaskCard({
       <text fg={isSelected ? fgColor : theme.textMuted}>
         {task.title}
       </text>
-      {task.hnauId && (
+      {task.hnauIds && task.hnauIds.length > 0 && (
         <text fg={isSelected ? fgColor : theme.accent}>
-          ↳ {task.hnauId}
+          ↳ {task.hnauIds.join(', ')}
         </text>
       )}
     </box>

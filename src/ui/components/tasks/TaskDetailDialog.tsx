@@ -119,11 +119,11 @@ export function TaskDetailDialog({
         <box style={{ flexDirection: 'row', marginTop: 1, gap: 1 }}>
           <text fg={theme.text} bold>Field:</text>
           <text fg={theme.accent}>{task.fieldName}</text>
-          {task.hnauId && (
+          {task.hnauIds && task.hnauIds.length > 0 && (
             <>
               <text fg={theme.textMuted}>│</text>
               <text fg={theme.text} bold>Hnau:</text>
-              <text fg={theme.text}>{task.hnauId}</text>
+              <text fg={theme.text}>{task.hnauIds.join(', ')}</text>
             </>
           )}
         </box>

@@ -694,6 +694,7 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         onTaskAction={handleTaskAction}
         onViewModeChange={handleViewModeChange}
         onEpicSelect={showEpicDetail}
+        onClearEpicFilter={handleClearEpicFilter}
         navigationDisabled={state.showCommandPalette || state.showNewTaskDialog || state.showNewEldilDialog || state.showEldilDetailDialog || state.showTaskDetailDialog || state.showEpicDetailDialog}
       />
       <CommandPalette

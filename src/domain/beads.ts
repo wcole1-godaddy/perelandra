@@ -21,7 +21,7 @@ export interface BeadsCreateOptions {
   title: string;
   description?: string;
   fieldName: string;
-  hnauId?: string;
+  hnauIds?: string[];
   createdBy: BeadsTaskCreator;
   labels?: string[];
   priority?: 'P1' | 'P2' | 'P3';
@@ -64,10 +64,12 @@ export class BeadsManager {
         args.push('--type', options.type);
       }
 
-      // Encode fieldName and hnauId as labels
+      // Encode fieldName and hnauIds as labels
       args.push('--label', `field:${options.fieldName}`);
-      if (options.hnauId) {
-        args.push('--label', `hnau:${options.hnauId}`);
+      if (options.hnauIds && options.hnauIds.length > 0) {
+        for (const hnauId of options.hnauIds) {
+          args.push('--label', `hnau:${hnauId}`);
+        }
       }
 
       if (options.labels && options.labels.length > 0) {
@@ -420,7 +422,7 @@ export class BeadsManager {
       title: String(obj.title ?? ''),
       description: obj.description ? String(obj.description) : undefined,
       fieldName: fieldName ?? String(obj.fieldName ?? 'main'),
-      hnauId: hnauId ?? (obj.hnauId ? String(obj.hnauId) : undefined),
+      hnauIds: allHnauIds.length > 0 ? allHnauIds : undefined,
       createdBy: (obj.createdBy as BeadsTaskCreator) ?? 'human',
       createdAt: String(obj.createdAt ?? obj.created_at ?? new Date().toISOString()),
       status: this.normalizeStatus(obj.status),
@@ -509,19 +511,22 @@ export class BeadsManager {
   }
 
   /**
-   * Resolves the HnauConfig for a task.
-   * If hnauId is set, returns that hnau's config.
-   * Otherwise, infers from task content or returns undefined.
+   * Resolves the HnauConfigs for a task.
+   * If hnauIds is set, returns those hnau configs.
+   * Otherwise, infers from task content or returns empty array.
    */
   resolveHnauForTask(
     task: BeadsTaskMetadata,
     config: PerelandraConfig
-  ): HnauConfig | undefined {
-    if (task.hnauId) {
-      return config.hnau.find((h) => h.id === task.hnauId);
+  ): HnauConfig[] {
+    if (task.hnauIds && task.hnauIds.length > 0) {
+      return task.hnauIds
+        .map((id) => config.hnau.find((h) => h.id === id))
+        .filter((h): h is HnauConfig => h !== undefined);
     }
 
-    return this.inferHnauFromTask(task, config);
+    const inferred = this.inferHnauFromTask(task, config);
+    return inferred ? [inferred] : [];
   }
 
   /**
