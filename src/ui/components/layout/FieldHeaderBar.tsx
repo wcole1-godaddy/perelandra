@@ -1,6 +1,6 @@
 import React from 'react';
 import type { FieldInfo } from '../../../domain/field';
-import { theme } from '../../theme';
+import { theme, LeftBorder } from '../../theme';
 
 export interface FieldHeaderBarProps {
   activeField: string;
@@ -14,20 +14,32 @@ export function FieldHeaderBar({ activeField, height }: FieldHeaderBarProps): Re
     <box
       style={{
         height,
-        border: true,
-        borderStyle: 'single',
-        borderColor: theme.border.default,
-        padding: 1,
+        backgroundColor: theme.backgroundPanel,
+        paddingLeft: 2,
+        paddingRight: 2,
+        paddingTop: 1,
+        paddingBottom: 1,
         flexDirection: 'row',
         justifyContent: 'space-between',
+        alignItems: 'center',
+        ...LeftBorder,
+        borderColor: theme.border,
       }}
     >
-      <text fg={theme.text.primary}>
-        <strong>⚡ Perelandra</strong> │ Field: <em>{activeField}</em>
-      </text>
-      <text fg={theme.text.muted}>
-        [Ctrl+P] Command Palette │ [q] Quit
-      </text>
+      <box style={{ flexDirection: 'row', gap: 1 }}>
+        <text fg={theme.primary} bold>★</text>
+        <text fg={theme.text} bold>Perelandra</text>
+        <text fg={theme.textMuted}>│</text>
+        <text fg={theme.textMuted}>Field:</text>
+        <text fg={theme.accent}>{activeField}</text>
+      </box>
+      <box style={{ flexDirection: 'row', gap: 1 }}>
+        <text fg={theme.textMuted}>ctrl+p</text>
+        <text fg={theme.text}>palette</text>
+        <text fg={theme.textMuted}>│</text>
+        <text fg={theme.textMuted}>q</text>
+        <text fg={theme.text}>quit</text>
+      </box>
     </box>
   );
 }

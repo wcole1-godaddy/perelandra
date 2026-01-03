@@ -1,4 +1,14 @@
-interface Flavor {
+/**
+ * Catppuccin-based theme with opencode-style layout patterns
+ *
+ * Uses Catppuccin Mocha/Macchiato/Frappe/Latte palettes with opencode's semantic naming:
+ * - primary/secondary/accent for actions and highlights
+ * - background/backgroundPanel/backgroundElement for layering
+ * - border/borderActive/borderSubtle for borders
+ * - text/textMuted for typography
+ */
+
+interface CatppuccinFlavor {
   name: string;
   dark: boolean;
   colors: {
@@ -31,7 +41,7 @@ interface Flavor {
   };
 }
 
-const latte: Flavor = {
+const latte: CatppuccinFlavor = {
   name: 'Latte',
   dark: false,
   colors: {
@@ -64,7 +74,73 @@ const latte: Flavor = {
   },
 };
 
-const mocha: Flavor = {
+const frappe: CatppuccinFlavor = {
+  name: 'Frappé',
+  dark: true,
+  colors: {
+    rosewater: '#f2d5cf',
+    flamingo: '#eebebe',
+    pink: '#f4b8e4',
+    mauve: '#ca9ee6',
+    red: '#e78284',
+    maroon: '#ea999c',
+    peach: '#ef9f76',
+    yellow: '#e5c890',
+    green: '#a6d189',
+    teal: '#81c8be',
+    sky: '#99d1db',
+    sapphire: '#85c1dc',
+    blue: '#8caaee',
+    lavender: '#babbf1',
+    text: '#c6d0f5',
+    subtext1: '#b5bfe2',
+    subtext0: '#a5adce',
+    overlay2: '#949cbb',
+    overlay1: '#838ba7',
+    overlay0: '#737994',
+    surface2: '#626880',
+    surface1: '#51576d',
+    surface0: '#414559',
+    base: '#303446',
+    mantle: '#292c3c',
+    crust: '#232634',
+  },
+};
+
+const macchiato: CatppuccinFlavor = {
+  name: 'Macchiato',
+  dark: true,
+  colors: {
+    rosewater: '#f4dbd6',
+    flamingo: '#f0c6c6',
+    pink: '#f5bde6',
+    mauve: '#c6a0f6',
+    red: '#ed8796',
+    maroon: '#ee99a0',
+    peach: '#f5a97f',
+    yellow: '#eed49f',
+    green: '#a6da95',
+    teal: '#8bd5ca',
+    sky: '#91d7e3',
+    sapphire: '#7dc4e4',
+    blue: '#8aadf4',
+    lavender: '#b7bdf8',
+    text: '#cad3f5',
+    subtext1: '#b8c0e0',
+    subtext0: '#a5adcb',
+    overlay2: '#939ab7',
+    overlay1: '#8087a2',
+    overlay0: '#6e738d',
+    surface2: '#5b6078',
+    surface1: '#494d64',
+    surface0: '#363a4f',
+    base: '#24273a',
+    mantle: '#1e2030',
+    crust: '#181926',
+  },
+};
+
+const mocha: CatppuccinFlavor = {
   name: 'Mocha',
   dark: true,
   colors: {
@@ -97,6 +173,17 @@ const mocha: Flavor = {
   },
 };
 
+export type ThemeFlavorName = 'mocha' | 'macchiato' | 'frappe' | 'latte';
+
+export const flavors: Record<ThemeFlavorName, CatppuccinFlavor> = {
+  mocha,
+  macchiato,
+  frappe,
+  latte,
+};
+
+export const flavorNames: ThemeFlavorName[] = ['mocha', 'macchiato', 'frappe', 'latte'];
+
 function detectColorScheme(): 'dark' | 'light' {
   const colorterm = process.env.COLORFGBG;
   if (colorterm) {
@@ -104,70 +191,116 @@ function detectColorScheme(): 'dark' | 'light' {
     if (bg === '0' || bg === '8') return 'dark';
     if (bg === '7' || bg === '15') return 'light';
   }
-  
+
   const termProgram = process.env.TERM_PROGRAM;
   const ghosttyTheme = process.env.GHOSTTY_RESOURCES_DIR;
-  
+
   if (ghosttyTheme || termProgram === 'ghostty') {
     return 'light';
   }
-  
-  return 'light';
+
+  return 'dark';
 }
 
-function createTheme(flavor: Flavor) {
+export function detectDefaultFlavor(): ThemeFlavorName {
+  return detectColorScheme() === 'light' ? 'latte' : 'mocha';
+}
+
+function createTheme(flavor: CatppuccinFlavor) {
   const c = flavor.colors;
-  
+
   return {
-    text: {
-      primary: c.text,
-      secondary: c.subtext0,
-      muted: c.overlay1,
-      inverse: c.base,
-    },
-    border: {
-      default: c.surface1,
-      muted: c.surface0,
-      focus: c.lavender,
-    },
-    accent: {
-      primary: c.lavender,
-      success: c.green,
-      warning: c.yellow,
-      error: c.red,
-      info: c.blue,
-    },
-    status: {
-      running: c.green,
-      starting: c.yellow,
-      stopping: c.peach,
-      stopped: c.overlay1,
-      error: c.red,
-      success: c.green,
-      warning: c.yellow,
-      idle: c.overlay1,
-      blocked: c.peach,
-      active: c.lavender,
-    },
-    statusBar: {
-      bg: c.mantle,
-      fg: c.subtext0,
-    },
-    surface: {
-      base: c.base,
-      mantle: c.mantle,
-      crust: c.crust,
-      surface0: c.surface0,
-      surface1: c.surface1,
-      surface2: c.surface2,
-    },
+    primary: c.lavender,
+    secondary: c.sapphire,
+    accent: c.mauve,
+
+    error: c.red,
+    warning: c.yellow,
+    success: c.green,
+    info: c.blue,
+
+    text: c.text,
+    textMuted: c.overlay1,
+    selectedForeground: c.base,
+
+    background: c.crust,
+    backgroundPanel: c.base,
+    backgroundElement: c.surface0,
+
+    border: c.surface1,
+    borderActive: c.lavender,
+    borderSubtle: c.surface0,
+
+    statusRunning: c.green,
+    statusStarting: c.yellow,
+    statusStopping: c.peach,
+    statusStopped: c.overlay1,
+    statusError: c.red,
+    statusSuccess: c.green,
+    statusWarning: c.yellow,
+    statusIdle: c.overlay1,
+    statusBlocked: c.peach,
+    statusActive: c.lavender,
+
     palette: c,
   } as const;
 }
 
-const colorScheme = detectColorScheme();
-const activeFlavor = colorScheme === 'light' ? latte : mocha;
+export const SplitBorder = {
+  border: ['left' as const, 'right' as const],
+  customBorderChars: {
+    vertical: '┃',
+    horizontal: '',
+    topLeft: '',
+    topRight: '',
+    bottomLeft: '',
+    bottomRight: '',
+  },
+};
 
-export const theme = createTheme(activeFlavor);
-export const currentFlavor = activeFlavor;
-export type Theme = typeof theme;
+export const LeftBorder = {
+  border: ['left' as const],
+  customBorderChars: {
+    vertical: '┃',
+    horizontal: '',
+    topLeft: '',
+    topRight: '',
+    bottomLeft: '',
+    bottomRight: '',
+  },
+};
+
+let currentFlavorName: ThemeFlavorName = detectDefaultFlavor();
+let currentTheme = createTheme(flavors[currentFlavorName]);
+
+export function getTheme() {
+  return currentTheme;
+}
+
+export function getThemeMeta() {
+  return { name: flavors[currentFlavorName].name, dark: flavors[currentFlavorName].dark };
+}
+
+export function getCurrentFlavorName(): ThemeFlavorName {
+  return currentFlavorName;
+}
+
+export function setThemeFlavor(name: ThemeFlavorName): void {
+  currentFlavorName = name;
+  currentTheme = createTheme(flavors[name]);
+}
+
+export const theme = new Proxy({} as ReturnType<typeof createTheme>, {
+  get(_target, prop: string) {
+    return (currentTheme as Record<string, unknown>)[prop];
+  },
+});
+
+export const themeMeta = new Proxy({} as { name: string; dark: boolean }, {
+  get(_target, prop: string) {
+    const meta = getThemeMeta();
+    return (meta as Record<string, unknown>)[prop];
+  },
+});
+
+export type ThemeType = ReturnType<typeof createTheme>;

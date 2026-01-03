@@ -1,6 +1,6 @@
 import React from 'react';
 import type { BeadsTaskMetadata, BeadsTaskStatus, TaskHistoryEntry } from '../../../types/beads';
-import { theme } from '../../theme';
+import { theme, LeftBorder } from '../../theme';
 
 export interface TaskDetailProps {
   task: BeadsTaskMetadata;
@@ -24,17 +24,17 @@ function getStatusIcon(status: BeadsTaskStatus): string {
   }
 }
 
-function getStatusColor(status: BeadsTaskStatus): string | undefined {
+function getStatusColor(status: BeadsTaskStatus): string {
   switch (status) {
     case 'done':
-      return theme.status.success;
+      return theme.statusSuccess;
     case 'in-progress':
-      return theme.status.warning;
+      return theme.statusWarning;
     case 'blocked':
-      return theme.status.error;
+      return theme.statusError;
     case 'todo':
     default:
-      return theme.status.idle;
+      return theme.statusIdle;
   }
 }
 
@@ -61,110 +61,126 @@ export function TaskDetail({
   return (
     <box
       style={{
-        border: true,
-        borderStyle: 'double',
+        backgroundColor: theme.backgroundPanel,
         flexDirection: 'column',
-        padding: 1,
+        paddingLeft: 2,
+        paddingRight: 2,
+        paddingTop: 1,
+        paddingBottom: 1,
         width: '100%',
         height: '100%',
+        ...LeftBorder,
+        borderColor: theme.borderActive,
       }}
     >
-      <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <text>
-          <strong>Task: {task.id}</strong>
-        </text>
-        <text fg={theme.text.muted}>[Esc] Close</text>
+      {/* Header */}
+      <box style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1 }}>
+        <box style={{ flexDirection: 'row', gap: 1 }}>
+          <text fg={theme.text} bold>Task:</text>
+          <text fg={theme.primary}>{task.id}</text>
+        </box>
+        <box style={{ flexDirection: 'row', gap: 1 }}>
+          <text fg={theme.textMuted}>esc</text>
+          <text fg={theme.text}>close</text>
+        </box>
       </box>
 
-      <text fg={theme.text.muted}>────────────────────────────</text>
-
-      <box style={{ marginTop: 1 }}>
-        <text>
-          <strong>Title:</strong> {task.title}
-        </text>
+      {/* Title */}
+      <box style={{ flexDirection: 'row', gap: 1 }}>
+        <text fg={theme.text} bold>Title:</text>
+        <text fg={theme.text}>{task.title}</text>
       </box>
 
-      <box style={{ flexDirection: 'row', marginTop: 1 }}>
-        <text>
-          <strong>Status:</strong>{' '}
-        </text>
-        <text fg={color}>
-          {icon} {task.status}
-        </text>
+      {/* Status */}
+      <box style={{ flexDirection: 'row', marginTop: 1, gap: 1 }}>
+        <text fg={theme.text} bold>Status:</text>
+        <text fg={color}>{icon} {task.status}</text>
       </box>
 
+      {/* Description */}
       {task.description && (
-        <box style={{ marginTop: 1 }}>
-          <text>
-            <strong>Description:</strong>
-          </text>
-          <text fg={theme.text.muted}>{task.description}</text>
+        <box style={{ marginTop: 1, flexDirection: 'column' }}>
+          <text fg={theme.text} bold>Description:</text>
+          <text fg={theme.textMuted}>{task.description}</text>
         </box>
       )}
 
-      <box style={{ flexDirection: 'row', marginTop: 1 }}>
-        <text>
-          <strong>Field:</strong> {task.fieldName}
-        </text>
+      {/* Field & Hnau */}
+      <box style={{ flexDirection: 'row', marginTop: 1, gap: 1 }}>
+        <text fg={theme.text} bold>Field:</text>
+        <text fg={theme.accent}>{task.fieldName}</text>
         {task.hnauId && (
-          <text fg={theme.text.muted}> │ Hnau: {task.hnauId}</text>
+          <>
+            <text fg={theme.textMuted}>│</text>
+            <text fg={theme.text} bold>Hnau:</text>
+            <text fg={theme.text}>{task.hnauId}</text>
+          </>
         )}
       </box>
 
-      <box style={{ flexDirection: 'row', marginTop: 1 }}>
-        <text>
-          <strong>Created:</strong> {formatTimestamp(task.createdAt)}
-        </text>
-        <text fg={theme.text.muted}> by {task.createdBy}</text>
+      {/* Created */}
+      <box style={{ flexDirection: 'row', marginTop: 1, gap: 1 }}>
+        <text fg={theme.text} bold>Created:</text>
+        <text fg={theme.text}>{formatTimestamp(task.createdAt)}</text>
+        <text fg={theme.textMuted}>by {task.createdBy}</text>
       </box>
 
+      {/* Labels */}
       {task.labels && task.labels.length > 0 && (
-        <box style={{ marginTop: 1 }}>
-          <text>
-            <strong>Labels:</strong> {task.labels.join(', ')}
-          </text>
+        <box style={{ marginTop: 1, flexDirection: 'row', gap: 1 }}>
+          <text fg={theme.text} bold>Labels:</text>
+          <text fg={theme.text}>{task.labels.join(', ')}</text>
         </box>
       )}
 
+      {/* Commits */}
       {task.relatedCommits && task.relatedCommits.length > 0 && (
-        <box style={{ marginTop: 1 }}>
-          <text>
-            <strong>Commits:</strong> {task.relatedCommits.join(', ')}
-          </text>
+        <box style={{ marginTop: 1, flexDirection: 'row', gap: 1 }}>
+          <text fg={theme.text} bold>Commits:</text>
+          <text fg={theme.text}>{task.relatedCommits.join(', ')}</text>
         </box>
       )}
 
+      {/* History */}
       {history.length > 0 && (
         <box style={{ marginTop: 2, flexGrow: 1 }}>
-          <text>
-            <strong>History</strong> <span fg={theme.text.muted}>({history.length})</span>
-          </text>
-          <text fg={theme.text.muted}>─────────────────────</text>
+          <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+            <text fg={theme.text} bold>History</text>
+            <text fg={theme.textMuted}>({history.length})</text>
+          </box>
           <scrollbox style={{ flexGrow: 1, maxHeight: 10 }}>
             {history.map((entry, idx) => (
-              <box key={idx} style={{ flexDirection: 'row' }}>
-                <text fg={theme.text.muted}>{formatTimestamp(entry.timestamp)} </text>
-                <text>{entry.action}</text>
-                {entry.user && <text fg={theme.text.muted}> ({entry.user})</text>}
+              <box key={idx} style={{ flexDirection: 'row', gap: 1 }}>
+                <text fg={theme.textMuted}>{formatTimestamp(entry.timestamp)}</text>
+                <text fg={theme.text}>{entry.action}</text>
+                {entry.user && <text fg={theme.textMuted}>({entry.user})</text>}
               </box>
             ))}
           </scrollbox>
         </box>
       )}
 
-      <box style={{ marginTop: 2 }}>
-        <text fg={theme.text.muted}>────────────────────────────</text>
-        <text fg={theme.text.muted}>
-          [s] Set status │ [c] Close task │ [e] Assign eldil
-        </text>
+      {/* Footer keybinds */}
+      <box style={{ marginTop: 2, flexDirection: 'row', gap: 1 }}>
+        <text fg={theme.textMuted}>s</text>
+        <text fg={theme.text}>set status</text>
+        <text fg={theme.textMuted}>c</text>
+        <text fg={theme.text}>close task</text>
+        <text fg={theme.textMuted}>e</text>
+        <text fg={theme.text}>assign eldil</text>
       </box>
 
-      <box style={{ marginTop: 1 }}>
-        <text fg={theme.accent.primary}>Change status: </text>
-        <text fg={theme.text.muted}>[1] todo </text>
-        <text fg={theme.status.warning}>[2] in-progress </text>
-        <text fg={theme.status.success}>[3] done </text>
-        <text fg={theme.status.error}>[4] blocked</text>
+      {/* Status change options */}
+      <box style={{ marginTop: 1, flexDirection: 'row', gap: 1 }}>
+        <text fg={theme.primary}>Change status:</text>
+        <text fg={theme.textMuted}>1</text>
+        <text fg={theme.text}>todo</text>
+        <text fg={theme.textMuted}>2</text>
+        <text fg={theme.statusWarning}>in-progress</text>
+        <text fg={theme.textMuted}>3</text>
+        <text fg={theme.statusSuccess}>done</text>
+        <text fg={theme.textMuted}>4</text>
+        <text fg={theme.statusError}>blocked</text>
       </box>
     </box>
   );

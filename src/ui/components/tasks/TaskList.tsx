@@ -1,7 +1,6 @@
 import React from 'react';
 import type { BeadsTaskMetadata, BeadsTaskStatus } from '../../../types/beads';
-import { getFocusBorderStyle, getFocusBorderColor } from '../../hooks/useNavigation';
-import { theme } from '../../theme';
+import { theme, LeftBorder } from '../../theme';
 
 export interface TaskListProps {
   tasks: BeadsTaskMetadata[];
@@ -26,17 +25,17 @@ function getStatusIcon(status: BeadsTaskStatus): string {
   }
 }
 
-function getStatusColor(status: BeadsTaskStatus): string | undefined {
+function getStatusColor(status: BeadsTaskStatus): string {
   switch (status) {
     case 'done':
-      return theme.status.success;
+      return theme.statusSuccess;
     case 'in-progress':
-      return theme.status.warning;
+      return theme.statusWarning;
     case 'blocked':
-      return theme.status.error;
+      return theme.statusError;
     case 'todo':
     default:
-      return theme.status.idle;
+      return theme.statusIdle;
   }
 }
 
@@ -47,25 +46,31 @@ export function TaskList({
   selectedIndex = 0,
 }: TaskListProps): React.ReactNode {
   const filteredTasks = tasks.filter((t) => t.fieldName === fieldName || !t.fieldName);
+  const borderColor = focused ? theme.borderActive : theme.border;
 
   return (
     <box
       style={{
-        border: true,
-        borderStyle: getFocusBorderStyle(focused),
-        borderColor: getFocusBorderColor(focused),
+        backgroundColor: theme.backgroundPanel,
         flexDirection: 'column',
-        padding: 1,
+        paddingLeft: 2,
+        paddingRight: 1,
+        paddingTop: 1,
+        paddingBottom: 1,
         flexGrow: 1,
+        ...LeftBorder,
+        borderColor,
       }}
     >
-      <text fg={theme.text.primary}>
-        <strong>Tasks</strong> <span fg={theme.text.muted}>({filteredTasks.length})</span>
-      </text>
-      <text fg={theme.text.muted}>─────────────────────</text>
+      {/* Header */}
+      <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+        <text fg={theme.text} bold>Tasks</text>
+        <text fg={theme.textMuted}>({filteredTasks.length})</text>
+      </box>
 
+      {/* List */}
       {filteredTasks.length === 0 ? (
-        <text fg={theme.text.muted}>No tasks for this field</text>
+        <text fg={theme.textMuted}>No tasks for this field</text>
       ) : (
         <scrollbox style={{ flexGrow: 1 }}>
           {filteredTasks.map((task, idx) => {
@@ -74,21 +79,37 @@ export function TaskList({
             const isSelected = focused && idx === selectedIndex;
 
             return (
-              <box key={task.id} style={{ flexDirection: 'row', marginBottom: 0 }}>
-                <text fg={isSelected ? theme.accent.primary : color}>
-                  {isSelected ? '▸ ' : '  '}
-                  {icon}{' '}
+              <box
+                key={task.id}
+                style={{
+                  flexDirection: 'row',
+                  backgroundColor: isSelected ? theme.primary : undefined,
+                  paddingLeft: isSelected ? 0 : 1,
+                }}
+              >
+                <text fg={isSelected ? theme.selectedForeground : color}>
+                  {isSelected ? '▸' : ' '} {icon}{' '}
                 </text>
-                <text fg={isSelected ? theme.accent.primary : theme.text.primary}>{task.id}: </text>
-                <text fg={isSelected ? theme.accent.primary : theme.text.primary}>{task.title}</text>
+                <text fg={isSelected ? theme.selectedForeground : theme.text}>
+                  {task.id}:{' '}
+                </text>
+                <text fg={isSelected ? theme.selectedForeground : theme.text}>
+                  {task.title}
+                </text>
               </box>
             );
           })}
         </scrollbox>
       )}
 
-      <box style={{ marginTop: 1 }}>
-        <text fg={theme.text.muted}>[n] New │ [Enter] View │ [c] Close</text>
+      {/* Footer keybinds */}
+      <box style={{ marginTop: 1, flexDirection: 'row', gap: 1 }}>
+        <text fg={theme.textMuted}>n</text>
+        <text fg={theme.text}>new</text>
+        <text fg={theme.textMuted}>enter</text>
+        <text fg={theme.text}>view</text>
+        <text fg={theme.textMuted}>c</text>
+        <text fg={theme.text}>close</text>
       </box>
     </box>
   );

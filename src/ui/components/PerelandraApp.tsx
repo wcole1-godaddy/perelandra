@@ -12,11 +12,44 @@ import type { Oyarsa } from '../../core/oyarsa';
 import { TmuxManager } from '../../domain/tmux';
 import { HnauManager } from '../../domain/hnau';
 import { logInfo } from '../../logging/pino';
+import { ThemeProvider, useTheme } from '../hooks/useTheme';
+import { type ThemeFlavorName, detectDefaultFlavor } from '../theme';
 
 export interface PerelandraAppProps {
   config: PerelandraConfig;
   repoRoot: string;
   oyarsa?: Oyarsa;
+}
+
+function loadThemePreference(repoRoot: string): ThemeFlavorName {
+  try {
+    const stateFile = Bun.file(`${repoRoot}/.perelandra-state.json`);
+    const content = require('fs').readFileSync(`${repoRoot}/.perelandra-state.json`, 'utf-8');
+    const data = JSON.parse(content);
+    if (data.themeFlavor && ['mocha', 'macchiato', 'frappe', 'latte'].includes(data.themeFlavor)) {
+      return data.themeFlavor as ThemeFlavorName;
+    }
+  } catch {
+    // File doesn't exist or invalid, use default
+  }
+  return detectDefaultFlavor();
+}
+
+async function saveThemePreference(repoRoot: string, flavor: ThemeFlavorName): Promise<void> {
+  try {
+    const stateFile = `${repoRoot}/.perelandra-state.json`;
+    let data: Record<string, unknown> = {};
+    try {
+      const content = require('fs').readFileSync(stateFile, 'utf-8');
+      data = JSON.parse(content);
+    } catch {
+      // File doesn't exist, start fresh
+    }
+    data.themeFlavor = flavor;
+    await Bun.write(stateFile, JSON.stringify(data, null, 2));
+  } catch (err) {
+    // Ignore save errors
+  }
 }
 
 export interface AppState {
@@ -29,25 +62,30 @@ export interface AppState {
   showCommandPalette: boolean;
   tmuxAvailable: boolean;
   initialized: boolean;
+  themeFlavor: ThemeFlavorName;
 }
 
 export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps): React.ReactNode {
   const renderer = useRenderer();
   const hnauManagerRef = useRef<HnauManager>(oyarsa?.getHnauManager() ?? new HnauManager(config));
 
-  const [state, setState] = useState<AppState>({
-    activeField: 'main',
-    fields: [],
-    hnauRuntimes: config.hnau.map((h) => ({
-      config: h,
-      status: 'stopped' as const,
-    })),
-    eldila: [],
-    tasks: [],
-    logs: [],
-    showCommandPalette: false,
-    tmuxAvailable: false,
-    initialized: false,
+  const [state, setState] = useState<AppState>(() => {
+    const savedTheme = loadThemePreference(repoRoot);
+    return {
+      activeField: 'main',
+      fields: [],
+      hnauRuntimes: config.hnau.map((h) => ({
+        config: h,
+        status: 'stopped' as const,
+      })),
+      eldila: [],
+      tasks: [],
+      logs: [],
+      showCommandPalette: false,
+      tmuxAvailable: false,
+      initialized: false,
+      themeFlavor: savedTheme,
+    };
   });
 
   useEffect(() => {
@@ -278,6 +316,15 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
     addLog('[REFRESH] Complete');
   }, [oyarsa, addLog, syncTasks]);
 
+  const handleThemeChange = useCallback(
+    (flavor: ThemeFlavorName) => {
+      setState((prev) => ({ ...prev, themeFlavor: flavor }));
+      saveThemePreference(repoRoot, flavor);
+      addLog(`[THEME] Switched to ${flavor}`);
+    },
+    [repoRoot, addLog]
+  );
+
   const commands = useMemo(
     () =>
       createDefaultCommands({
@@ -287,8 +334,10 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         onSyncTasks: syncTasks,
         onRefresh: refreshAll,
         onQuit: handleQuit,
+        onThemeChange: handleThemeChange,
+        currentTheme: state.themeFlavor,
       }),
-    [setActiveField, addLog, handleQuit, syncTasks, refreshAll]
+    [setActiveField, addLog, handleQuit, syncTasks, refreshAll, handleThemeChange, state.themeFlavor]
   );
 
   useKeyboard((event) => {
@@ -304,7 +353,7 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
   });
 
   return (
-    <>
+    <ThemeProvider initialFlavor={state.themeFlavor} onFlavorChange={handleThemeChange}>
       <RootLayout
         config={config}
         repoRoot={repoRoot}
@@ -321,6 +370,6 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         onClose={closeCommandPalette}
         onAction={addLog}
       />
-    </>
+    </ThemeProvider>
   );
 }

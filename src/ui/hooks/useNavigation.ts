@@ -178,6 +178,6 @@ export function getFocusBorderStyle(focused: boolean): 'single' | 'double' {
   return focused ? 'double' : 'single';
 }
 
-export function getFocusBorderColor(focused: boolean): string | undefined {
-  return focused ? theme.border.focus : theme.border.default;
+export function getFocusBorderColor(focused: boolean): string {
+  return focused ? theme.borderActive : theme.border;
 }

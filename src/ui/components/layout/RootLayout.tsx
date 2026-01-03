@@ -62,11 +62,21 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauActi
 
   const headerHeight = 3;
   const statusBarHeight = 1;
-  const logViewerHeight = Math.min(10, Math.floor(height * 0.25));
+  const logViewerHeight = Math.min(8, Math.floor(height * 0.2));
   const mainContentHeight = height - headerHeight - statusBarHeight - logViewerHeight;
 
+  // Opencode-style layout:
+  // - Main background is dark (background)
+  // - Panels have slightly lighter background (backgroundPanel)
+  // - Left borders only for panel separation
+  // - Consistent padding (paddingLeft: 2, paddingTop: 1)
+  
+  const leftColumnWidth = Math.floor(width * 0.35);
+  const rightColumnWidth = width - leftColumnWidth;
+
   return (
-    <box style={{ width, height, flexDirection: 'column', backgroundColor: theme.surface.base }}>
+    <box style={{ width, height, flexDirection: 'column', backgroundColor: theme.background }}>
+      {/* Header */}
       <FieldHeaderBar
         activeField={state.activeField}
         fields={state.fields}
@@ -74,15 +84,19 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauActi
         height={headerHeight}
       />
 
+      {/* Main content area */}
       <box style={{ flexDirection: 'row', height: mainContentHeight }}>
+        {/* Left column: Services */}
         <HnauStatusGrid
           hnauRuntimes={state.hnauRuntimes}
-          width={Math.floor(width * 0.35)}
+          width={leftColumnWidth}
           onAction={onCommand}
           focused={navigation.focusedPane === 'hnau'}
           selectedIndex={navigation.getSelectedIndex('hnau')}
         />
-        <box style={{ flexDirection: 'column', flexGrow: 1 }}>
+
+        {/* Right column: Tasks + Eldila stacked */}
+        <box style={{ flexDirection: 'column', width: rightColumnWidth }}>
           <TaskList
             tasks={state.tasks}
             fieldName={state.activeField}
@@ -100,16 +114,21 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauActi
         </box>
       </box>
 
+      {/* Log viewer */}
       <LogViewer
         logs={state.logs}
         height={logViewerHeight}
+        focused={navigation.focusedPane === 'logs'}
       />
 
+      {/* Status bar */}
       <StatusBar
         activeField={state.activeField}
         hnauCount={config.hnau.length}
         taskCount={state.tasks.length}
+        eldilCount={filteredEldila.length}
         height={statusBarHeight}
+        themeFlavor={state.themeFlavor}
       />
     </box>
   );

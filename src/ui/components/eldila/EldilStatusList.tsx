@@ -1,7 +1,6 @@
 import React from 'react';
 import type { EldilRuntime, EldilStatus } from '../../../types/eldil';
-import { getFocusBorderStyle, getFocusBorderColor } from '../../hooks/useNavigation';
-import { theme } from '../../theme';
+import { theme, LeftBorder } from '../../theme';
 
 export interface EldilStatusListProps {
   eldila: EldilRuntime[];
@@ -28,19 +27,19 @@ function getStatusIcon(status: EldilStatus): string {
   }
 }
 
-function getStatusColor(status: EldilStatus): string | undefined {
+function getStatusColor(status: EldilStatus): string {
   switch (status) {
     case 'running':
-      return theme.status.active;
+      return theme.statusActive;
     case 'completed':
-      return theme.status.success;
+      return theme.statusSuccess;
     case 'error':
-      return theme.status.error;
+      return theme.statusError;
     case 'blocked':
-      return theme.status.blocked;
+      return theme.statusBlocked;
     case 'idle':
     default:
-      return theme.status.idle;
+      return theme.statusIdle;
   }
 }
 
@@ -82,27 +81,31 @@ export function EldilStatusList({
   const others = filtered.filter((e) => e.state.status !== 'running');
   const orderedList = [...running, ...others];
 
+  const borderColor = focused ? theme.borderActive : theme.border;
+
   return (
     <box
       style={{
-        border: true,
-        borderStyle: getFocusBorderStyle(focused),
-        borderColor: getFocusBorderColor(focused),
+        backgroundColor: theme.backgroundPanel,
         flexDirection: 'column',
-        padding: 1,
+        paddingLeft: 2,
+        paddingRight: 1,
+        paddingTop: 1,
+        paddingBottom: 1,
         flexGrow: 1,
+        ...LeftBorder,
+        borderColor,
       }}
     >
-      <text fg={theme.text.primary}>
-        <strong>Eldila</strong>{' '}
-        <span fg={theme.text.muted}>
-          ({running.length} running, {filtered.length} total)
-        </span>
-      </text>
-      <text fg={theme.text.muted}>─────────────────────</text>
+      {/* Header */}
+      <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+        <text fg={theme.text} bold>Eldila</text>
+        <text fg={theme.textMuted}>({running.length} running, {filtered.length} total)</text>
+      </box>
 
+      {/* List */}
       {filtered.length === 0 ? (
-        <text fg={theme.text.muted}>No eldila active</text>
+        <text fg={theme.textMuted}>No eldila active</text>
       ) : (
         <scrollbox style={{ flexGrow: 1 }}>
           {orderedList.map((eldil, idx) => (
@@ -115,8 +118,14 @@ export function EldilStatusList({
         </scrollbox>
       )}
 
-      <box style={{ marginTop: 1 }}>
-        <text fg={theme.text.muted}>[n] Spawn │ [Enter] View │ [k] Kill</text>
+      {/* Footer keybinds */}
+      <box style={{ marginTop: 1, flexDirection: 'row', gap: 1 }}>
+        <text fg={theme.textMuted}>n</text>
+        <text fg={theme.text}>spawn</text>
+        <text fg={theme.textMuted}>enter</text>
+        <text fg={theme.text}>view</text>
+        <text fg={theme.textMuted}>k</text>
+        <text fg={theme.text}>kill</text>
       </box>
     </box>
   );
@@ -134,26 +143,31 @@ function EldilRow({ eldil, isSelected = false }: EldilRowProps): React.ReactNode
   const duration = formatDuration(eldil.state.startedAt);
 
   return (
-    <box style={{ flexDirection: 'row', marginBottom: 0 }}>
-      <text fg={isSelected ? theme.accent.primary : color}>
-        {isSelected ? '▸ ' : '  '}
-        {icon}{' '}
+    <box
+      style={{
+        flexDirection: 'row',
+        backgroundColor: isSelected ? theme.primary : undefined,
+        paddingLeft: isSelected ? 0 : 1,
+      }}
+    >
+      <text fg={isSelected ? theme.selectedForeground : color}>
+        {isSelected ? '▸' : ' '} {icon}{' '}
       </text>
       <text>{toolBadge} </text>
-      <text fg={isSelected ? theme.accent.primary : theme.text.primary}>{eldil.id}</text>
-      <text fg={theme.text.muted}> │ </text>
-      <text fg={theme.text.muted}>{eldil.state.fieldName}</text>
+      <text fg={isSelected ? theme.selectedForeground : theme.text}>{eldil.id}</text>
+      <text fg={isSelected ? theme.selectedForeground : theme.textMuted}> │ </text>
+      <text fg={isSelected ? theme.selectedForeground : theme.textMuted}>{eldil.state.fieldName}</text>
       {eldil.state.currentTaskId && (
         <>
-          <text fg={theme.text.muted}> → </text>
-          <text fg={theme.accent.primary}>{eldil.state.currentTaskId}</text>
+          <text fg={isSelected ? theme.selectedForeground : theme.textMuted}> → </text>
+          <text fg={isSelected ? theme.selectedForeground : theme.accent}>{eldil.state.currentTaskId}</text>
         </>
       )}
-      <text fg={theme.text.muted}> │ {duration}</text>
+      <text fg={isSelected ? theme.selectedForeground : theme.textMuted}> │ {duration}</text>
       {eldil.state.lastError && (
         <>
-          <text fg={theme.text.muted}> │ </text>
-          <text fg={theme.status.error}>{eldil.state.lastError.slice(0, 30)}...</text>
+          <text fg={isSelected ? theme.selectedForeground : theme.textMuted}> │ </text>
+          <text fg={theme.statusError}>{eldil.state.lastError.slice(0, 25)}...</text>
         </>
       )}
     </box>

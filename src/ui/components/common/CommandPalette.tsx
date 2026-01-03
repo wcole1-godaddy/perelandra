@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useKeyboard } from '@opentui/react';
-import { theme } from '../../theme';
+import { theme, SplitBorder, type ThemeFlavorName, flavorNames, flavors } from '../../theme';
 
 export interface Command {
   id: string;
@@ -102,32 +102,35 @@ export function CommandPalette({
     <box
       style={{
         position: 'absolute',
-        top: 2,
+        top: 4,
         left: '20%',
-        width: '60%',
-        height: '70%',
-        backgroundColor: theme.surface.base,
-        border: true,
-        borderStyle: 'double',
+        width: 60,
+        maxHeight: '60%',
+        backgroundColor: theme.backgroundPanel,
+        paddingLeft: 2,
+        paddingRight: 2,
+        paddingTop: 1,
+        paddingBottom: 1,
         flexDirection: 'column',
-        padding: 1,
+        ...SplitBorder,
+        borderColor: theme.primary,
       }}
     >
-      <box style={{ flexDirection: 'row', marginBottom: 1 }}>
-        <text fg={theme.accent.primary}>❯ </text>
-        <text fg={theme.text.primary}>{query}</text>
-        <text fg={theme.text.muted}>│</text>
+      {/* Search input */}
+      <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+        <text fg={theme.primary}>❯</text>
+        <text fg={theme.text}>{query || 'Search commands...'}</text>
+        <text fg={theme.textMuted}>│</text>
       </box>
 
-      <text fg={theme.text.muted}>─────────────────────────────</text>
-
+      {/* Results */}
       {filteredCommands.length === 0 ? (
-        <text fg={theme.text.muted}>No matching commands</text>
+        <text fg={theme.textMuted}>No matching commands</text>
       ) : (
         <scrollbox style={{ flexGrow: 1 }}>
           {Array.from(groupedCommands.entries()).map(([category, cmds]) => (
             <box key={category} style={{ marginBottom: 1 }}>
-              <text fg={theme.text.muted}>{category}</text>
+              <text fg={theme.accent} bold>{category}</text>
               {cmds.map((cmd) => {
                 const isSelected = flatIndex === selectedIndex;
                 flatIndex++;
@@ -138,14 +141,17 @@ export function CommandPalette({
                     style={{
                       flexDirection: 'row',
                       justifyContent: 'space-between',
+                      backgroundColor: isSelected ? theme.primary : undefined,
+                      paddingLeft: isSelected ? 0 : 1,
                     }}
                   >
-                    <text fg={isSelected ? theme.accent.primary : theme.text.primary}>
-                      {isSelected ? '▸ ' : '  '}
-                      {cmd.label}
+                    <text fg={isSelected ? theme.selectedForeground : theme.text}>
+                      {isSelected ? '▸' : ' '} {cmd.label}
                     </text>
                     {cmd.shortcut && (
-                      <text fg={theme.text.muted}>{cmd.shortcut}</text>
+                      <text fg={isSelected ? theme.selectedForeground : theme.textMuted}>
+                        {cmd.shortcut}
+                      </text>
                     )}
                   </box>
                 );
@@ -155,10 +161,15 @@ export function CommandPalette({
         </scrollbox>
       )}
 
-      <text fg={theme.text.muted}>─────────────────────────────</text>
-      <text fg={theme.text.muted}>
-        [↑/↓] Navigate │ [Enter] Execute │ [Esc] Close
-      </text>
+      {/* Footer */}
+      <box style={{ marginTop: 1, flexDirection: 'row', gap: 1 }}>
+        <text fg={theme.textMuted}>↑/↓</text>
+        <text fg={theme.text}>navigate</text>
+        <text fg={theme.textMuted}>enter</text>
+        <text fg={theme.text}>execute</text>
+        <text fg={theme.textMuted}>esc</text>
+        <text fg={theme.text}>close</text>
+      </box>
     </box>
   );
 }
@@ -170,12 +181,14 @@ export function createDefaultCommands(handlers: {
   onSyncTasks: () => void;
   onRefresh: () => void;
   onQuit: () => void;
+  onThemeChange?: (flavor: ThemeFlavorName) => void;
+  currentTheme?: ThemeFlavorName;
 }): Command[] {
-  return [
+  const commands: Command[] = [
     {
       id: 'field.switch',
       label: 'Switch Field',
-      shortcut: 'Ctrl+F',
+      shortcut: 'ctrl+f',
       category: 'Fields',
       action: () => handlers.onFieldSwitch(''),
     },
@@ -215,4 +228,19 @@ export function createDefaultCommands(handlers: {
       action: handlers.onQuit,
     },
   ];
+
+  if (handlers.onThemeChange) {
+    for (const name of flavorNames) {
+      const flavor = flavors[name];
+      const isCurrent = name === handlers.currentTheme;
+      commands.push({
+        id: `theme.${name}`,
+        label: `${isCurrent ? '● ' : ''}Theme: ${flavor.name}${flavor.dark ? ' (dark)' : ' (light)'}`,
+        category: 'Theme',
+        action: () => handlers.onThemeChange!(name),
+      });
+    }
+  }
+
+  return commands;
 }
