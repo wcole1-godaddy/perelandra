@@ -8,6 +8,7 @@ import { EldilManager } from '../domain/eldil';
 import { BeadsManager } from '../domain/beads';
 import { SornReviewer } from '../domain/sorn';
 import { TmuxManager } from '../domain/tmux';
+import { Maleldil } from '../domain/maleldil';
 import { logInfo, logWarn, logError } from '../logging/pino';
 import type { SornReviewResult } from '../types/sorn';
 import { getDeepHeaven } from './deepheaven';
@@ -36,6 +37,7 @@ export class Oyarsa {
   private beadsManager: BeadsManager;
   private sornReviewer: SornReviewer;
   private tmuxManager: TmuxManager;
+  private maleldil: Maleldil;
 
   private started = false;
   private sornReviewOnComplete: boolean;
@@ -64,6 +66,7 @@ export class Oyarsa {
     );
     this.sornReviewer = new SornReviewer();
     this.tmuxManager = new TmuxManager();
+    this.maleldil = new Maleldil(options.config.logs, this.repoRoot);
 
     this.hnauManager.setTmuxManager(this.tmuxManager);
     this.eldilManager.setTmuxManager(this.tmuxManager);
@@ -91,6 +94,8 @@ export class Oyarsa {
       await this.syncFieldsFromManager();
 
       await this.recoverOrphanedEldila();
+
+      this.maleldil.startAutoRotation(60000);
 
       this.started = true;
       logInfo('Oyarsa started successfully');
@@ -145,6 +150,7 @@ export class Oyarsa {
     this.stateManager.dispose();
     this.hnauManager.dispose();
     this.eldilManager.dispose();
+    this.maleldil.dispose();
 
     this.started = false;
     logInfo('Oyarsa shutdown complete');
@@ -401,6 +407,10 @@ export class Oyarsa {
 
   getTmuxManager(): TmuxManager {
     return this.tmuxManager;
+  }
+
+  getMaleldil(): Maleldil {
+    return this.maleldil;
   }
 
   getStateManager(): StateManager {

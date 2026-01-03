@@ -11,6 +11,7 @@ import { getRepoRoot } from '../domain/git';
 import { startUI } from '../ui';
 import { formatError, isPerelandraError } from '../util/errors';
 import { TmuxManager } from '../domain/tmux';
+import { Maleldil } from '../domain/maleldil';
 import { getDeepHeaven } from '../core/deepheaven';
 import { stringify as stringifyYaml } from 'yaml';
 
@@ -357,6 +358,179 @@ logsCmd
       } else {
         console.error(err instanceof Error ? err.message : err);
       }
+      process.exit(1);
+    }
+  });
+
+logsCmd
+  .command('query')
+  .description('Query and filter logs')
+  .option('--file <name>', 'Log file name', 'perelandra.log')
+  .option('--level <level>', 'Minimum log level (debug, info, warn, error)')
+  .option('--from <date>', 'Start date (ISO format)')
+  .option('--to <date>', 'End date (ISO format)')
+  .option('--contains <text>', 'Filter by text content')
+  .option('--field <name>', 'Filter by field')
+  .option('--hnau <id>', 'Filter by hnau')
+  .option('--limit <n>', 'Max results', '100')
+  .option('--json', 'Output as JSON')
+  .action(
+    async (options: {
+      file: string;
+      level?: string;
+      from?: string;
+      to?: string;
+      contains?: string;
+      field?: string;
+      hnau?: string;
+      limit: string;
+      json?: boolean;
+    }) => {
+      try {
+        const { config } = await loadConfig();
+        const repoRootResult = await getRepoRoot();
+        const repoRoot = repoRootResult.data ?? process.cwd();
+
+        const maleldil = new Maleldil(config.logs, repoRoot);
+
+        const result = await maleldil.query(options.file, {
+          level: options.level as 'debug' | 'info' | 'warn' | 'error' | undefined,
+          from: options.from ? new Date(options.from) : undefined,
+          to: options.to ? new Date(options.to) : undefined,
+          contains: options.contains,
+          field: options.field,
+          hnau: options.hnau,
+          limit: parseInt(options.limit, 10),
+        });
+
+        if (!result.success) {
+          console.error('Error:', result.error);
+          process.exit(1);
+        }
+
+        if (options.json) {
+          console.log(JSON.stringify(result.data, null, 2));
+          return;
+        }
+
+        console.log(`Found ${result.data!.total} entries (showing ${result.data!.entries.length}):\n`);
+
+        for (const entry of result.data!.entries) {
+          const time = entry.time ? new Date(entry.time as string).toLocaleTimeString() : '';
+          const levelIcon =
+            entry.levelName === 'error' ? '🔴' :
+            entry.levelName === 'warn' ? '🟡' :
+            entry.levelName === 'info' ? '🔵' : '⚪';
+          console.log(`${time} ${levelIcon} ${entry.msg}`);
+        }
+
+        if (result.data!.hasMore) {
+          console.log(`\n... and ${result.data!.total - result.data!.entries.length} more`);
+        }
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : err);
+        process.exit(1);
+      }
+    }
+  );
+
+logsCmd
+  .command('stats')
+  .description('Show log statistics')
+  .option('--file <name>', 'Log file name', 'perelandra.log')
+  .action(async (options: { file: string }) => {
+    try {
+      const { config } = await loadConfig();
+      const repoRootResult = await getRepoRoot();
+      const repoRoot = repoRootResult.data ?? process.cwd();
+
+      const maleldil = new Maleldil(config.logs, repoRoot);
+      const result = await maleldil.getLogStats(options.file);
+
+      if (!result.success) {
+        console.error('Error:', result.error);
+        process.exit(1);
+      }
+
+      console.log(`Log Statistics (${options.file}):\n`);
+      console.log(`  Total entries: ${result.data!.total}`);
+      console.log(`  🔴 Error: ${result.data!.error}`);
+      console.log(`  🟡 Warn:  ${result.data!.warn}`);
+      console.log(`  🔵 Info:  ${result.data!.info}`);
+      console.log(`  ⚪ Debug: ${result.data!.debug}`);
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
+  });
+
+logsCmd
+  .command('rotate')
+  .description('Manually rotate log files')
+  .option('--all', 'Rotate all log files')
+  .option('--file <name>', 'Specific log file to rotate')
+  .action(async (options: { all?: boolean; file?: string }) => {
+    try {
+      const { config } = await loadConfig();
+      const repoRootResult = await getRepoRoot();
+      const repoRoot = repoRootResult.data ?? process.cwd();
+
+      const maleldil = new Maleldil(config.logs, repoRoot);
+
+      if (options.all) {
+        const result = await maleldil.rotateAllLogs();
+        if (result.success) {
+          console.log('✓ Rotated all log files');
+        } else {
+          console.error('Error:', result.error);
+          process.exit(1);
+        }
+      } else {
+        const fileName = options.file ?? 'perelandra.log';
+        const result = await maleldil.rotateLog(fileName);
+        if (result.success) {
+          console.log(`✓ Rotated ${fileName}`);
+        } else {
+          console.error('Error:', result.error);
+          process.exit(1);
+        }
+      }
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
+  });
+
+logsCmd
+  .command('list')
+  .description('List all log files')
+  .action(async () => {
+    try {
+      const { config } = await loadConfig();
+      const repoRootResult = await getRepoRoot();
+      const repoRoot = repoRootResult.data ?? process.cwd();
+
+      const maleldil = new Maleldil(config.logs, repoRoot);
+      const result = await maleldil.listLogFiles();
+
+      if (!result.success) {
+        console.error('Error:', result.error);
+        process.exit(1);
+      }
+
+      if (result.data!.length === 0) {
+        console.log('No log files found');
+        return;
+      }
+
+      console.log(`Log Files (${maleldil.getConfig().root}):\n`);
+      for (const file of result.data!) {
+        const sizeMb = (file.size / 1024 / 1024).toFixed(2);
+        const modified = file.modified.toLocaleString();
+        console.log(`  ${file.name} (${sizeMb} MB, ${modified})`);
+      }
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : err);
       process.exit(1);
     }
   });
