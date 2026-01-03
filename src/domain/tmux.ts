@@ -40,6 +40,14 @@ export class TmuxManager {
     this.sessionName = sessionName;
   }
 
+  setSessionName(name: string): void {
+    this.sessionName = name;
+  }
+
+  getSessionName(): string {
+    return this.sessionName;
+  }
+
   async isTmuxAvailable(): Promise<boolean> {
     try {
       await $`which tmux`.quiet();

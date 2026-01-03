@@ -11,6 +11,8 @@ import { getRepoRoot } from '../domain/git';
 import { startUI } from '../ui';
 import { formatError, isPerelandraError } from '../util/errors';
 import { TmuxManager } from '../domain/tmux';
+import { getDeepHeaven } from '../core/deepheaven';
+import { stringify as stringifyYaml } from 'yaml';
 
 const program = new Command();
 
@@ -73,6 +75,69 @@ configCmd
       console.error(formatConfigError(result.error));
       process.exit(1);
     }
+  });
+
+configCmd
+  .command('global')
+  .description('Manage global DeepHeaven config (~/.perelandra/config.yaml)')
+  .option('--init', 'Initialize global config')
+  .option('--show', 'Show current global config')
+  .option('--path', 'Show config file path')
+  .option('--set <key=value>', 'Set a config value')
+  .action(async (options: { init?: boolean; show?: boolean; path?: boolean; set?: string }) => {
+    const deepHeaven = getDeepHeaven();
+
+    if (options.path) {
+      console.log(deepHeaven.getConfigPath());
+      return;
+    }
+
+    if (options.init) {
+      const result = await deepHeaven.init();
+      if (result.success) {
+        console.log(`✓ Created ${deepHeaven.getConfigPath()}`);
+      } else {
+        console.error('Error:', result.error);
+        process.exit(1);
+      }
+      return;
+    }
+
+    await deepHeaven.load();
+
+    if (options.set) {
+      const [key, value] = options.set.split('=');
+      if (!key || value === undefined) {
+        console.error('Error: Invalid format. Use --set key=value');
+        process.exit(1);
+      }
+
+      const parts = key.split('.');
+      if (parts.length === 1) {
+        deepHeaven.set(key as keyof ReturnType<typeof deepHeaven.getConfig>, value);
+      } else if (parts.length === 2) {
+        deepHeaven.setNested(
+          parts[0] as keyof ReturnType<typeof deepHeaven.getConfig>,
+          parts[1],
+          value === 'true' ? true : value === 'false' ? false : isNaN(Number(value)) ? value : Number(value)
+        );
+      }
+
+      const saveResult = await deepHeaven.save();
+      if (saveResult.success) {
+        console.log(`✓ Set ${key}=${value}`);
+      } else {
+        console.error('Error saving:', saveResult.error);
+        process.exit(1);
+      }
+      return;
+    }
+
+    const config = deepHeaven.getConfig();
+    console.log('DeepHeaven Global Config:');
+    console.log(`  Path: ${deepHeaven.getConfigPath()}`);
+    console.log();
+    console.log(stringifyYaml(config));
   });
 
 program

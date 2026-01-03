@@ -10,6 +10,8 @@ import { SornReviewer } from '../domain/sorn';
 import { TmuxManager } from '../domain/tmux';
 import { logInfo, logWarn, logError } from '../logging/pino';
 import type { SornReviewResult } from '../types/sorn';
+import { getDeepHeaven } from './deepheaven';
+import type { DeepHeavenConfig } from '../types/deepheaven';
 
 export interface OyarsaOptions {
   config: PerelandraConfig;
@@ -37,6 +39,7 @@ export class Oyarsa {
 
   private started = false;
   private sornReviewOnComplete: boolean;
+  private globalConfig?: DeepHeavenConfig;
 
   constructor(options: OyarsaOptions) {
     this.config = options.config;
@@ -78,6 +81,11 @@ export class Oyarsa {
     try {
       logInfo('Oyarsa starting', { repoRoot: this.repoRoot });
 
+      const deepHeaven = getDeepHeaven();
+      await deepHeaven.load();
+      this.globalConfig = deepHeaven.getConfig();
+      this.applyGlobalConfig();
+
       await this.stateManager.load();
 
       await this.syncFieldsFromManager();
@@ -93,6 +101,33 @@ export class Oyarsa {
       logError('Oyarsa failed to start', err);
       return { success: false, error: errorMsg };
     }
+  }
+
+  private applyGlobalConfig(): void {
+    if (!this.globalConfig) return;
+
+    if (this.globalConfig.sorn?.model) {
+      this.sornReviewer.setModel(this.globalConfig.sorn.model);
+    }
+    if (this.globalConfig.sorn?.timeout) {
+      this.sornReviewer.setTimeout(this.globalConfig.sorn.timeout);
+    }
+
+    if (this.globalConfig.eldil?.maxWorkersPerField) {
+      this.eldilManager.setMaxWorkersPerField(this.globalConfig.eldil.maxWorkersPerField);
+    }
+    if (this.globalConfig.eldil?.maxTotalWorkers) {
+      this.eldilManager.setMaxTotalWorkers(this.globalConfig.eldil.maxTotalWorkers);
+    }
+
+    if (this.globalConfig.tmux?.sessionName) {
+      this.tmuxManager.setSessionName(this.globalConfig.tmux.sessionName);
+    }
+
+    logInfo('Applied global DeepHeaven config', {
+      sornModel: this.globalConfig.sorn?.model,
+      maxWorkers: this.globalConfig.eldil?.maxTotalWorkers,
+    });
   }
 
   async shutdown(): Promise<void> {
