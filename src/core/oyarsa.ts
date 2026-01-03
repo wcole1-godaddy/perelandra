@@ -223,11 +223,16 @@ export class Oyarsa {
   private async recoverOrphanedEldila(): Promise<void> {
     const eldila = this.stateManager.listEldila();
     let maxIdNumber = 0;
+    const knownPanes = new Set<string>();
 
     for (const eldil of eldila) {
       const idMatch = eldil.id.match(/^eldil-(\d+)$/);
       if (idMatch) {
         maxIdNumber = Math.max(maxIdNumber, parseInt(idMatch[1], 10));
+      }
+
+      if (eldil.tmuxPane) {
+        knownPanes.add(eldil.tmuxPane);
       }
 
       if (eldil.status === 'running') {
@@ -252,7 +257,81 @@ export class Oyarsa {
       }
     }
 
+    const discoveredOrphans = await this.discoverOrphanPanes(knownPanes);
+    for (const orphan of discoveredOrphans) {
+      const idMatch = orphan.id.match(/^eldil-(\d+)$/);
+      if (idMatch) {
+        maxIdNumber = Math.max(maxIdNumber, parseInt(idMatch[1], 10));
+      }
+    }
+
     this.eldilManager.setIdCounter(maxIdNumber);
+  }
+
+  private async discoverOrphanPanes(knownPanes: Set<string>): Promise<EldilState[]> {
+    const orphans: EldilState[] = [];
+
+    const windowsResult = await this.tmuxManager.listWindows();
+    if (!windowsResult.success || !windowsResult.data) {
+      return orphans;
+    }
+
+    for (const window of windowsResult.data) {
+      if (!window.name.startsWith('field-')) {
+        continue;
+      }
+
+      const fieldName = window.name.replace('field-', '');
+      const panesResult = await this.tmuxManager.listPanes(window.index);
+      if (!panesResult.success || !panesResult.data) {
+        continue;
+      }
+
+      for (const pane of panesResult.data) {
+        const tmuxPane = `${window.name}.${pane.index}`;
+
+        if (knownPanes.has(tmuxPane)) {
+          continue;
+        }
+
+        if (!pane.title?.startsWith('eldil-')) {
+          continue;
+        }
+
+        const eldilId = pane.title;
+        logInfo('Discovered orphan eldil pane', {
+          eldilId,
+          tmuxPane,
+          fieldName,
+        });
+
+        const field = this.stateManager.getField(fieldName);
+        const now = new Date().toISOString();
+
+        const orphanState: EldilState = {
+          id: eldilId,
+          fieldName,
+          fieldPath: field?.path ?? this.repoRoot,
+          status: 'running',
+          startedAt: now,
+          updatedAt: now,
+          tmuxPane,
+          initialPrompt: '[Recovered orphan - original prompt unknown]',
+          tool: 'amp',
+        };
+
+        this.stateManager.setEldil(eldilId, orphanState);
+        await this.reattachEldil(orphanState);
+        orphans.push(orphanState);
+      }
+    }
+
+    if (orphans.length > 0) {
+      await this.stateManager.persist();
+      logInfo('Recovered orphan eldila from tmux', { count: orphans.length });
+    }
+
+    return orphans;
   }
 
   private async reattachEldil(eldilState: EldilState): Promise<void> {

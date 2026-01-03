@@ -1,6 +1,7 @@
 import React from 'react';
 import type { HnauRuntime, HnauStatus } from '../../../types/hnau';
 import { theme, LeftBorder } from '../../theme';
+import { PerelandraGlobe } from '../common/PerelandraGlobe';
 
 export interface HnauStatusGridProps {
   hnauRuntimes: HnauRuntime[];

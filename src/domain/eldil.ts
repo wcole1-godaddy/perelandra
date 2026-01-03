@@ -26,7 +26,6 @@ const DEFAULT_MAX_AUTO_HANDOFF_DEPTH = 3;
 
 interface RequiredManagerOptions {
   defaultTool: EldilTool;
-  useTmux: boolean;
   logOutputs: boolean;
   maxWorkersPerField: number;
   maxTotalWorkers: number;
@@ -46,7 +45,6 @@ export class EldilManager {
   constructor(options: EldilManagerOptions = {}) {
     this.options = {
       defaultTool: options.defaultTool ?? DEFAULT_TOOL,
-      useTmux: options.useTmux ?? true,
       logOutputs: options.logOutputs ?? true,
       maxWorkersPerField: options.maxWorkersPerField ?? DEFAULT_MAX_WORKERS_PER_FIELD,
       maxTotalWorkers: options.maxTotalWorkers ?? DEFAULT_MAX_TOTAL_WORKERS,
@@ -146,16 +144,11 @@ export class EldilManager {
     };
 
     try {
-      let spawnResult: EldilResult;
-
-      if (this.options.useTmux && this.tmux && options.useTmux !== false) {
-        spawnResult = await this.spawnInTmux(runtime, options);
-        if (!spawnResult.success) {
-          spawnResult = await this.spawnDirect(runtime, options);
-        }
-      } else {
-        spawnResult = await this.spawnDirect(runtime, options);
+      if (!this.tmux) {
+        return { success: false, error: 'Tmux manager not configured - eldila require tmux for durability' };
       }
+
+      const spawnResult = await this.spawnInTmux(runtime, options);
 
       if (!spawnResult.success) {
         return { success: false, error: spawnResult.error };
@@ -212,34 +205,6 @@ export class EldilManager {
     );
 
     return { success: true };
-  }
-
-  private async spawnDirect(
-    runtime: EldilRuntime,
-    options: EldilSpawnOptions
-  ): Promise<EldilResult> {
-    const cmd = this.buildCommand(runtime.config, options.prompt);
-
-    try {
-      const proc = Bun.spawn(['sh', '-c', cmd], {
-        cwd: options.fieldPath,
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-
-      runtime.process = {
-        pid: proc.pid,
-        startedAt: new Date().toISOString(),
-      };
-
-      this.handleProcessOutput(runtime, proc);
-      return { success: true };
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : String(err),
-      };
-    }
   }
 
   private buildCommand(config: EldilConfig, prompt: string): string {

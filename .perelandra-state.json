@@ -6,7 +6,9 @@
       "path": "/Users/wcole1/GoDaddy/perelandra",
       "branch": "main",
       "hnauStatuses": {},
-      "activeEldila": []
+      "activeEldila": [
+        "eldil-1"
+      ]
     },
     "baseline": {
       "name": "baseline",
@@ -25,5 +27,17 @@
       "activeEldila": []
     }
   },
-  "eldila": {}
+  "eldila": {
+    "eldil-1": {
+      "id": "eldil-1",
+      "fieldName": "main",
+      "fieldPath": "/Users/wcole1/GoDaddy/perelandra",
+      "status": "running",
+      "startedAt": "2026-01-03T19:14:41.950Z",
+      "updatedAt": "2026-01-03T19:14:41.950Z",
+      "tmuxPane": "field-main.2",
+      "initialPrompt": "Tell me something about this codebase",
+      "tool": "amp"
+    }
+  }
 }

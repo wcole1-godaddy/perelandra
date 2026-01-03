@@ -55,7 +55,6 @@ export interface EldilSpawnOptions {
   taskId?: string;
   prompt: string;
   tool?: EldilTool;
-  useTmux?: boolean;
 }
 
 export interface EldilResult<T = void> {
@@ -92,7 +91,6 @@ export interface EldilRuntime {
 
 export interface EldilManagerOptions {
   defaultTool?: EldilTool;
-  useTmux?: boolean;
   logOutputs?: boolean;
   maxWorkersPerField?: number;
   maxTotalWorkers?: number;
