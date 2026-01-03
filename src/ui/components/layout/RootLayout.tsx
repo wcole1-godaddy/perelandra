@@ -7,6 +7,8 @@ import { TaskList } from '../tasks/TaskList';
 import { LogViewer } from '../logs/LogViewer';
 import type { PerelandraConfig } from '../../../types/config';
 import type { AppState } from '../PerelandraApp';
+import { theme } from '../../theme';
+import { useNavigation, type FocusPane } from '../../hooks/useNavigation';
 
 export interface RootLayoutProps {
   config: PerelandraConfig;
@@ -14,10 +16,31 @@ export interface RootLayoutProps {
   state: AppState;
   onFieldSwitch: (fieldName: string) => void;
   onCommand: (message: string) => void;
+  navigationDisabled?: boolean;
 }
 
-export function RootLayout({ config, state, onFieldSwitch, onCommand }: RootLayoutProps): React.ReactNode {
+export function RootLayout({ config, state, onFieldSwitch, onCommand, navigationDisabled = false }: RootLayoutProps): React.ReactNode {
   const { width, height } = useTerminalDimensions();
+
+  const panes: FocusPane[] = ['hnau', 'tasks', 'eldila', 'logs'];
+  const itemCounts: Record<FocusPane, number> = {
+    tasks: state.tasks.filter((t) => t.fieldName === state.activeField || !t.fieldName).length,
+    hnau: state.hnauRuntimes.length,
+    logs: state.logs.length,
+    eldila: 0,
+  };
+
+  const navigation = useNavigation({
+    panes,
+    itemCounts,
+    onEnter: (pane, index) => {
+      onCommand(`[Action] ${pane}[${index}] selected`);
+    },
+    onAction: (action) => {
+      onCommand(`[Nav] ${action}`);
+    },
+    disabled: navigationDisabled,
+  });
 
   const headerHeight = 3;
   const statusBarHeight = 1;
@@ -25,7 +48,7 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand }: RootLayo
   const mainContentHeight = height - headerHeight - statusBarHeight - logViewerHeight;
 
   return (
-    <box style={{ width, height, flexDirection: 'column' }}>
+    <box style={{ width, height, flexDirection: 'column', backgroundColor: theme.surface.base }}>
       <FieldHeaderBar
         activeField={state.activeField}
         fields={state.fields}
@@ -38,12 +61,16 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand }: RootLayo
           hnauRuntimes={state.hnauRuntimes}
           width={Math.floor(width * 0.4)}
           onAction={onCommand}
+          focused={navigation.focusedPane === 'hnau'}
+          selectedIndex={navigation.getSelectedIndex('hnau')}
         />
         <box style={{ flexDirection: 'column', flexGrow: 1 }}>
           <TaskList
             tasks={state.tasks}
             fieldName={state.activeField}
             onAction={onCommand}
+            focused={navigation.focusedPane === 'tasks'}
+            selectedIndex={navigation.getSelectedIndex('tasks')}
           />
         </box>
       </box>

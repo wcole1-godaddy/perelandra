@@ -64,4 +64,19 @@ export interface EldilManagerOptions {
   defaultTool?: EldilTool;
   useTmux?: boolean;
   logOutputs?: boolean;
+  maxWorkersPerField?: number;
+  maxTotalWorkers?: number;
+}
+
+export interface EldilPoolStats {
+  totalWorkers: number;
+  runningWorkers: number;
+  workersByField: Map<string, number>;
+  queuedTasks: number;
+}
+
+export interface QueuedSpawn {
+  options: EldilSpawnOptions;
+  resolve: (result: EldilResult<EldilRuntime>) => void;
+  queuedAt: string;
 }

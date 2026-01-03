@@ -175,11 +175,105 @@ const logsCmd = program
 
 logsCmd
   .command('tail')
-  .description('Tail logs')
-  .option('--field <name>', 'Field context')
-  .option('--hnau <id>', 'Hnau filter')
-  .action(async (_options: { field?: string; hnau?: string }) => {
-    console.log('TODO: Tail logs');
+  .description('Tail logs in real-time')
+  .option('-n, --lines <count>', 'Number of lines to show initially', '20')
+  .option('--field <name>', 'Filter by field context')
+  .option('--hnau <id>', 'Filter by hnau service')
+  .option('-f, --follow', 'Follow log output (default: true)', true)
+  .action(async (options: { lines: string; field?: string; hnau?: string; follow?: boolean }) => {
+    try {
+      const { config } = await loadConfig();
+      const logRoot = config.logs?.root ?? 'logs';
+      const logFile = `${logRoot}/perelandra.log`;
+
+      const file = Bun.file(logFile);
+      if (!(await file.exists())) {
+        console.log(`No logs found at ${logFile}`);
+        console.log('Logs will appear here once Perelandra starts writing to the log file.');
+        if (options.follow) {
+          console.log('Waiting for logs...\n');
+        } else {
+          process.exit(0);
+        }
+      }
+
+      const numLines = parseInt(options.lines, 10) || 20;
+
+      const filterLog = (line: string): boolean => {
+        if (!line.trim()) return false;
+        if (options.field && !line.includes(`field":"${options.field}`)) return false;
+        if (options.hnau && !line.includes(`hnau":"${options.hnau}`)) return false;
+        return true;
+      };
+
+      const formatLogLine = (line: string): string => {
+        try {
+          const parsed = JSON.parse(line);
+          const time = parsed.time ? new Date(parsed.time).toLocaleTimeString() : '';
+          const level = (parsed.level === 30 ? 'INFO' : parsed.level === 40 ? 'WARN' : parsed.level === 50 ? 'ERROR' : 'DEBUG').padEnd(5);
+          const msg = parsed.msg ?? '';
+          return `${time} [${level}] ${msg}`;
+        } catch {
+          return line;
+        }
+      };
+
+      if (await file.exists()) {
+        const content = await file.text();
+        const lines = content.split('\n').filter(filterLog);
+        const tail = lines.slice(-numLines);
+
+        for (const line of tail) {
+          console.log(formatLogLine(line));
+        }
+      }
+
+      if (options.follow) {
+        console.log('\n--- Following logs (Ctrl+C to exit) ---\n');
+
+        let lastSize = (await file.exists()) ? file.size : 0;
+
+        const checkForNewLogs = async () => {
+          try {
+            if (!(await file.exists())) return;
+
+            const currentSize = Bun.file(logFile).size;
+            if (currentSize > lastSize) {
+              const content = await Bun.file(logFile).text();
+              const newContent = content.slice(lastSize);
+              const newLines = newContent.split('\n').filter(filterLog);
+
+              for (const line of newLines) {
+                if (line.trim()) {
+                  console.log(formatLogLine(line));
+                }
+              }
+
+              lastSize = currentSize;
+            }
+          } catch {
+            // File might be temporarily unavailable
+          }
+        };
+
+        const interval = setInterval(checkForNewLogs, 500);
+
+        process.on('SIGINT', () => {
+          clearInterval(interval);
+          console.log('\nStopped following logs.');
+          process.exit(0);
+        });
+
+        await new Promise(() => {});
+      }
+    } catch (err) {
+      if (isPerelandraError(err)) {
+        console.error(formatError(err));
+      } else {
+        console.error(err instanceof Error ? err.message : err);
+      }
+      process.exit(1);
+    }
   });
 
 const tmuxCmd = program

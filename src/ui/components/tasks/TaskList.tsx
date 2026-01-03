@@ -1,10 +1,15 @@
 import React from 'react';
 import type { BeadsTaskMetadata, BeadsTaskStatus } from '../../../types/beads';
+import { getFocusBorderStyle, getFocusBorderColor } from '../../hooks/useNavigation';
+import { theme } from '../../theme';
 
 export interface TaskListProps {
   tasks: BeadsTaskMetadata[];
   fieldName: string;
   onAction: (message: string) => void;
+  focused?: boolean;
+  selectedIndex?: number;
+  onSelect?: (task: BeadsTaskMetadata) => void;
 }
 
 function getStatusIcon(status: BeadsTaskStatus): string {
@@ -21,51 +26,61 @@ function getStatusIcon(status: BeadsTaskStatus): string {
   }
 }
 
-function getStatusColor(status: BeadsTaskStatus): string {
+function getStatusColor(status: BeadsTaskStatus): string | undefined {
   switch (status) {
     case 'done':
-      return 'green';
+      return theme.status.success;
     case 'in-progress':
-      return 'yellow';
+      return theme.status.warning;
     case 'blocked':
-      return 'red';
+      return theme.status.error;
     case 'todo':
     default:
-      return 'gray';
+      return theme.status.idle;
   }
 }
 
-export function TaskList({ tasks, fieldName }: TaskListProps): React.ReactNode {
+export function TaskList({
+  tasks,
+  fieldName,
+  focused = false,
+  selectedIndex = 0,
+}: TaskListProps): React.ReactNode {
   const filteredTasks = tasks.filter((t) => t.fieldName === fieldName || !t.fieldName);
 
   return (
     <box
       style={{
         border: true,
-        borderStyle: 'single',
+        borderStyle: getFocusBorderStyle(focused),
+        borderColor: getFocusBorderColor(focused),
         flexDirection: 'column',
         padding: 1,
         flexGrow: 1,
       }}
     >
-      <text>
-        <strong>Tasks</strong> <span fg="gray">({filteredTasks.length})</span>
+      <text fg={theme.text.primary}>
+        <strong>Tasks</strong> <span fg={theme.text.muted}>({filteredTasks.length})</span>
       </text>
-      <text fg="gray">─────────────────────</text>
+      <text fg={theme.text.muted}>─────────────────────</text>
 
       {filteredTasks.length === 0 ? (
-        <text fg="gray">No tasks for this field</text>
+        <text fg={theme.text.muted}>No tasks for this field</text>
       ) : (
         <scrollbox style={{ flexGrow: 1 }}>
-          {filteredTasks.map((task) => {
+          {filteredTasks.map((task, idx) => {
             const icon = getStatusIcon(task.status);
             const color = getStatusColor(task.status);
+            const isSelected = focused && idx === selectedIndex;
 
             return (
               <box key={task.id} style={{ flexDirection: 'row', marginBottom: 0 }}>
-                <text fg={color}>{icon} </text>
-                <text>{task.id}: </text>
-                <text>{task.title}</text>
+                <text fg={isSelected ? theme.accent.primary : color}>
+                  {isSelected ? '▸ ' : '  '}
+                  {icon}{' '}
+                </text>
+                <text fg={isSelected ? theme.accent.primary : theme.text.primary}>{task.id}: </text>
+                <text fg={isSelected ? theme.accent.primary : theme.text.primary}>{task.title}</text>
               </box>
             );
           })}
@@ -73,7 +88,7 @@ export function TaskList({ tasks, fieldName }: TaskListProps): React.ReactNode {
       )}
 
       <box style={{ marginTop: 1 }}>
-        <text fg="gray">[n] New │ [Enter] View │ [c] Close</text>
+        <text fg={theme.text.muted}>[n] New │ [Enter] View │ [c] Close</text>
       </box>
     </box>
   );

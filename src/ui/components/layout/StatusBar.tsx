@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../../theme';
 
 export interface StatusBarProps {
   activeField: string;
@@ -12,16 +13,16 @@ export function StatusBar({ activeField, hnauCount, taskCount, height }: StatusB
     <box
       style={{
         height,
-        backgroundColor: 'blue',
+        backgroundColor: theme.statusBar.bg,
         padding: 0,
         flexDirection: 'row',
         justifyContent: 'space-between',
       }}
     >
-      <text fg="white" bg="blue">
+      <text fg={theme.statusBar.fg}>
         {' '}Field: {activeField} │ Hnau: {hnauCount} │ Tasks: {taskCount}{' '}
       </text>
-      <text fg="white" bg="blue">
+      <text fg={theme.statusBar.fg}>
         {' '}Perelandra v0.1.0{' '}
       </text>
     </box>

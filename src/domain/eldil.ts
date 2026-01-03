@@ -8,23 +8,39 @@ import type {
   EldilManagerOptions,
   EldilTool,
   EldilStatus,
+  EldilPoolStats,
+  QueuedSpawn,
 } from '../types/eldil';
 import type { TmuxManager } from './tmux';
 import { EldilError } from '../util/errors';
 
 const DEFAULT_TOOL: EldilTool = 'amp';
+const DEFAULT_MAX_WORKERS_PER_FIELD = 3;
+const DEFAULT_MAX_TOTAL_WORKERS = 10;
+
+interface RequiredManagerOptions {
+  defaultTool: EldilTool;
+  useTmux: boolean;
+  logOutputs: boolean;
+  maxWorkersPerField: number;
+  maxTotalWorkers: number;
+}
 
 export class EldilManager {
   private runtimes: Map<string, EldilRuntime> = new Map();
-  private options: Required<EldilManagerOptions>;
+  private options: RequiredManagerOptions;
   private tmux?: TmuxManager;
   private idCounter = 0;
+  private spawnQueue: QueuedSpawn[] = [];
+  private onWorkerComplete?: (runtime: EldilRuntime) => void;
 
   constructor(options: EldilManagerOptions = {}) {
     this.options = {
       defaultTool: options.defaultTool ?? DEFAULT_TOOL,
       useTmux: options.useTmux ?? true,
       logOutputs: options.logOutputs ?? true,
+      maxWorkersPerField: options.maxWorkersPerField ?? DEFAULT_MAX_WORKERS_PER_FIELD,
+      maxTotalWorkers: options.maxTotalWorkers ?? DEFAULT_MAX_TOTAL_WORKERS,
     };
   }
 
@@ -32,12 +48,42 @@ export class EldilManager {
     this.tmux = tmux;
   }
 
+  setOnWorkerComplete(callback: (runtime: EldilRuntime) => void): void {
+    this.onWorkerComplete = callback;
+  }
+
   private generateId(): string {
     this.idCounter++;
     return `eldil-${this.idCounter}`;
   }
 
+  private canSpawnInField(fieldName: string): boolean {
+    const running = this.listByField(fieldName).filter(
+      (r) => r.state.status === 'running'
+    );
+    return running.length < this.options.maxWorkersPerField;
+  }
+
+  private canSpawnTotal(): boolean {
+    const running = this.listByStatus('running');
+    return running.length < this.options.maxTotalWorkers;
+  }
+
   async spawn(options: EldilSpawnOptions): Promise<EldilResult<EldilRuntime>> {
+    if (!this.canSpawnTotal() || !this.canSpawnInField(options.fieldName)) {
+      return new Promise((resolve) => {
+        this.spawnQueue.push({
+          options,
+          resolve,
+          queuedAt: new Date().toISOString(),
+        });
+      });
+    }
+
+    return this.spawnImmediate(options);
+  }
+
+  async spawnImmediate(options: EldilSpawnOptions): Promise<EldilResult<EldilRuntime>> {
     const id = this.generateId();
     const tool = options.tool ?? this.options.defaultTool;
     const now = new Date().toISOString();
@@ -221,7 +267,28 @@ export class EldilManager {
         timestamp: new Date().toISOString(),
       };
       runtime.outputs.push(completeOutput);
+
+      this.onWorkerComplete?.(runtime);
+      this.processQueue();
     });
+  }
+
+  private async processQueue(): Promise<void> {
+    if (this.spawnQueue.length === 0) return;
+
+    const eligibleIndex = this.spawnQueue.findIndex((item) => {
+      return (
+        this.canSpawnTotal() && this.canSpawnInField(item.options.fieldName)
+      );
+    });
+
+    if (eligibleIndex === -1) return;
+
+    const [item] = this.spawnQueue.splice(eligibleIndex, 1);
+    if (!item) return;
+
+    const result = await this.spawnImmediate(item.options);
+    item.resolve(result);
   }
 
   get(id: string): EldilRuntime | undefined {
@@ -289,8 +356,52 @@ export class EldilManager {
     return this.runtimes.delete(id);
   }
 
+  getPoolStats(): EldilPoolStats {
+    const all = this.list();
+    const running = all.filter((r) => r.state.status === 'running');
+
+    const workersByField = new Map<string, number>();
+    for (const runtime of running) {
+      const current = workersByField.get(runtime.state.fieldName) ?? 0;
+      workersByField.set(runtime.state.fieldName, current + 1);
+    }
+
+    return {
+      totalWorkers: all.length,
+      runningWorkers: running.length,
+      workersByField,
+      queuedTasks: this.spawnQueue.length,
+    };
+  }
+
+  getQueueLength(): number {
+    return this.spawnQueue.length;
+  }
+
+  getQueueForField(fieldName: string): number {
+    return this.spawnQueue.filter((q) => q.options.fieldName === fieldName)
+      .length;
+  }
+
+  async spawnParallel(
+    optionsList: EldilSpawnOptions[]
+  ): Promise<EldilResult<EldilRuntime>[]> {
+    return Promise.all(optionsList.map((opts) => this.spawn(opts)));
+  }
+
+  setMaxWorkersPerField(max: number): void {
+    this.options.maxWorkersPerField = max;
+    this.processQueue();
+  }
+
+  setMaxTotalWorkers(max: number): void {
+    this.options.maxTotalWorkers = max;
+    this.processQueue();
+  }
+
   dispose(): void {
     this.stopAll();
     this.runtimes.clear();
+    this.spawnQueue.length = 0;
   }
 }
