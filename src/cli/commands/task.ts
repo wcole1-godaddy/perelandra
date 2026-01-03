@@ -10,7 +10,7 @@ export function createTaskCommand(): Command {
     .command('new')
     .description('Create a new task')
     .option('--field <name>', 'Field context', 'main')
-    .option('--hnau <id>', 'Associated Hnau')
+    .option('--hnau <ids>', 'Associated Hnau IDs (comma-separated for multiple)')
     .option('--priority <p>', 'Priority (P1, P2, P3)', 'P2')
     .option('--type <t>', 'Type (task, epic, bug)', 'task')
     .argument('<title>', 'Task title')
@@ -25,10 +25,12 @@ export function createTaskCommand(): Command {
       const beadsRoot = config.beads?.root ?? `${repoRootResult.data}/.beads`;
       const beads = new BeadsManager(beadsRoot, repoRootResult.data);
 
+      const hnauIds = options.hnau?.split(',').map((s) => s.trim()).filter(Boolean);
+
       const result = await beads.createTask({
         title,
         fieldName: options.field,
-        hnauId: options.hnau,
+        hnauIds,
         createdBy: 'human',
         priority: options.priority as 'P1' | 'P2' | 'P3',
         type: options.type as 'task' | 'epic' | 'bug',
@@ -104,7 +106,7 @@ export function createTaskCommand(): Command {
       console.log(`${task.id}: ${task.title}`);
       console.log(`  Status: ${task.status}`);
       console.log(`  Field: ${task.fieldName}`);
-      if (task.hnauId) console.log(`  Hnau: ${task.hnauId}`);
+      if (task.hnauIds?.length) console.log(`  Hnau: ${task.hnauIds.join(', ')}`);
       if (task.description) console.log(`  Description: ${task.description}`);
       if (task.labels?.length) console.log(`  Labels: ${task.labels.join(', ')}`);
     });

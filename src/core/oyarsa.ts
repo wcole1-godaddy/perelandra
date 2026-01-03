@@ -264,8 +264,8 @@ export class Oyarsa {
   }
 
   private async completeTaskWithReview(taskId: string, fieldPath: string): Promise<void> {
-    const task = await this.beadsManager.getTask(taskId);
-    const fieldName = task?.fieldName ?? '';
+    const taskResult = await this.beadsManager.getTask(taskId);
+    const fieldName = taskResult.data?.fieldName ?? '';
 
     if (!this.sornReviewOnComplete) {
       await this.beadsManager.updateTask(taskId, { status: 'done' });

@@ -21,7 +21,7 @@ export interface BeadsCreateOptions {
   title: string;
   description?: string;
   fieldName: string;
-  hnauId?: string;
+  hnauIds?: string[];
   createdBy: BeadsTaskCreator;
   labels?: string[];
   priority?: 'P1' | 'P2' | 'P3';
@@ -64,10 +64,12 @@ export class BeadsManager {
         args.push('--type', options.type);
       }
 
-      // Encode fieldName and hnauId as labels
+      // Encode fieldName and hnauIds as labels
       args.push('--label', `field:${options.fieldName}`);
-      if (options.hnauId) {
-        args.push('--label', `hnau:${options.hnauId}`);
+      if (options.hnauIds && options.hnauIds.length > 0) {
+        for (const hnauId of options.hnauIds) {
+          args.push('--label', `hnau:${hnauId}`);
+        }
       }
 
       if (options.labels && options.labels.length > 0) {
@@ -244,15 +246,19 @@ export class BeadsManager {
     const obj = output as Record<string, unknown>;
     const rawLabels = Array.isArray(obj.labels) ? obj.labels.map(String) : [];
 
-    // Extract fieldName and hnauId from labels
-    const { fieldName, hnauId, labels } = this.extractFieldAndHnauFromLabels(rawLabels);
+    // Extract fieldName and hnauIds from labels
+    const { fieldName, hnauIds, labels } = this.extractFieldAndHnauFromLabels(rawLabels);
+
+    // Merge with any existing hnauIds from the object
+    const existingHnauIds = Array.isArray(obj.hnauIds) ? obj.hnauIds.map(String) : [];
+    const allHnauIds = [...new Set([...hnauIds, ...existingHnauIds])];
 
     return {
       id: String(obj.id ?? ''),
       title: String(obj.title ?? ''),
       description: obj.description ? String(obj.description) : undefined,
       fieldName: fieldName ?? String(obj.fieldName ?? 'main'),
-      hnauId: hnauId ?? (obj.hnauId ? String(obj.hnauId) : undefined),
+      hnauIds: allHnauIds.length > 0 ? allHnauIds : undefined,
       createdBy: (obj.createdBy as BeadsTaskCreator) ?? 'human',
       createdAt: String(obj.createdAt ?? new Date().toISOString()),
       status: this.normalizeStatus(obj.status),
@@ -265,24 +271,24 @@ export class BeadsManager {
 
   private extractFieldAndHnauFromLabels(labels: string[]): {
     fieldName: string | undefined;
-    hnauId: string | undefined;
+    hnauIds: string[];
     labels: string[];
   } {
     let fieldName: string | undefined;
-    let hnauId: string | undefined;
+    const hnauIds: string[] = [];
     const remainingLabels: string[] = [];
 
     for (const label of labels) {
       if (label.startsWith('field:')) {
         fieldName = label.slice(6);
       } else if (label.startsWith('hnau:')) {
-        hnauId = label.slice(5);
+        hnauIds.push(label.slice(5));
       } else {
         remainingLabels.push(label);
       }
     }
 
-    return { fieldName, hnauId, labels: remainingLabels };
+    return { fieldName, hnauIds, labels: remainingLabels };
   }
 
   private parseTaskListOutput(
@@ -332,19 +338,22 @@ export class BeadsManager {
   }
 
   /**
-   * Resolves the HnauConfig for a task.
-   * If hnauId is set, returns that hnau's config.
-   * Otherwise, infers from task content or returns undefined.
+   * Resolves the HnauConfigs for a task.
+   * If hnauIds is set, returns those hnau configs.
+   * Otherwise, infers from task content or returns empty array.
    */
   resolveHnauForTask(
     task: BeadsTaskMetadata,
     config: PerelandraConfig
-  ): HnauConfig | undefined {
-    if (task.hnauId) {
-      return config.hnau.find((h) => h.id === task.hnauId);
+  ): HnauConfig[] {
+    if (task.hnauIds && task.hnauIds.length > 0) {
+      return task.hnauIds
+        .map((id) => config.hnau.find((h) => h.id === id))
+        .filter((h): h is HnauConfig => h !== undefined);
     }
 
-    return this.inferHnauFromTask(task, config);
+    const inferred = this.inferHnauFromTask(task, config);
+    return inferred ? [inferred] : [];
   }
 
   /**
