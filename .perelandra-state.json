@@ -1,0 +1,29 @@
+{
+  "activeField": "main",
+  "fields": {
+    "main": {
+      "name": "main",
+      "path": "/Users/wcole1/GoDaddy/perelandra",
+      "branch": "main",
+      "hnauStatuses": {},
+      "activeEldila": []
+    },
+    "baseline": {
+      "name": "baseline",
+      "path": "/Users/wcole1/GoDaddy/perelandra/fields/baseline",
+      "branch": "baseline/perelandra",
+      "baseBranch": "main",
+      "hnauStatuses": {},
+      "activeEldila": []
+    },
+    "router-spike": {
+      "name": "router-spike",
+      "path": "/Users/wcole1/GoDaddy/perelandra/fields/router-spike",
+      "branch": "spike/router-ai-refactor",
+      "baseBranch": "main",
+      "hnauStatuses": {},
+      "activeEldila": []
+    }
+  },
+  "eldila": {}
+}

@@ -20,6 +20,7 @@ export interface NavigationHandlers {
 }
 
 export type HnauAction = 'start' | 'stop' | 'restart' | 'logs';
+export type EldilAction = 'spawn' | 'stop' | 'view';
 
 export interface UseNavigationOptions {
   panes: FocusPane[];
@@ -27,11 +28,12 @@ export interface UseNavigationOptions {
   onEnter?: (pane: FocusPane, index: number) => void;
   onAction?: (action: string) => void;
   onHnauAction?: (action: HnauAction, index: number) => void;
+  onEldilAction?: (action: EldilAction, index: number) => void;
   disabled?: boolean;
 }
 
 export function useNavigation(options: UseNavigationOptions): NavigationHandlers {
-  const { panes, itemCounts, onEnter, onAction, onHnauAction, disabled = false } = options;
+  const { panes, itemCounts, onEnter, onAction, onHnauAction, onEldilAction, disabled = false } = options;
 
   const [focusedPane, setFocusedPane] = useState<FocusPane>(panes[0] ?? 'tasks');
   const [selectedIndices, setSelectedIndices] = useState<Map<FocusPane, number>>(
@@ -136,6 +138,21 @@ export function useNavigation(options: UseNavigationOptions): NavigationHandlers
       }
       if (event.name === 'l') {
         onHnauAction('logs', selectedIndex);
+        return;
+      }
+    }
+
+    if (focusedPane === 'eldila' && onEldilAction) {
+      if (event.name === 'n') {
+        onEldilAction('spawn', selectedIndex);
+        return;
+      }
+      if (event.name === 'k') {
+        onEldilAction('stop', selectedIndex);
+        return;
+      }
+      if (event.name === 'return') {
+        onEldilAction('view', selectedIndex);
         return;
       }
     }

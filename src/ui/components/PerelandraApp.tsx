@@ -6,10 +6,12 @@ import type { PerelandraConfig } from '../../types/config';
 import type { FieldInfo } from '../../domain/field';
 import type { BeadsTaskMetadata } from '../../types/beads';
 import type { HnauRuntime, HnauStatus } from '../../types/hnau';
-import type { HnauAction } from '../hooks/useNavigation';
+import type { EldilRuntime } from '../../types/eldil';
+import type { HnauAction, EldilAction } from '../hooks/useNavigation';
 import type { Oyarsa } from '../../core/oyarsa';
 import { TmuxManager } from '../../domain/tmux';
 import { HnauManager } from '../../domain/hnau';
+import { logInfo } from '../../logging/pino';
 
 export interface PerelandraAppProps {
   config: PerelandraConfig;
@@ -21,6 +23,7 @@ export interface AppState {
   activeField: string;
   fields: FieldInfo[];
   hnauRuntimes: HnauRuntime[];
+  eldila: EldilRuntime[];
   tasks: BeadsTaskMetadata[];
   logs: string[];
   showCommandPalette: boolean;
@@ -39,6 +42,7 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
       config: h,
       status: 'stopped' as const,
     })),
+    eldila: [],
     tasks: [],
     logs: [],
     showCommandPalette: false,
@@ -53,9 +57,34 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
       
       const initialActiveField = oyarsa?.getActiveField() ?? 'main';
       
+      let fields: FieldInfo[] = [];
+      let tasks: BeadsTaskMetadata[] = [];
+      let eldila: EldilRuntime[] = [];
+
+      if (oyarsa) {
+        fields = await oyarsa.getFields();
+        
+        const beadsManager = oyarsa.getBeadsManager();
+        const tasksResult = await beadsManager.listReady();
+        if (tasksResult.success && tasksResult.data) {
+          tasks = tasksResult.data;
+        }
+
+        eldila = oyarsa.getEldilManager().list();
+        
+        logInfo('TUI initialized with real data', {
+          fieldCount: fields.length,
+          taskCount: tasks.length,
+          eldilCount: eldila.length,
+        });
+      }
+      
       setState((prev) => ({
         ...prev,
         activeField: initialActiveField,
+        fields,
+        tasks,
+        eldila,
         tmuxAvailable: available,
         initialized: true,
         logs: available
@@ -140,6 +169,39 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
     [repoRoot, addLog, updateHnauStatus]
   );
 
+  const handleEldilAction = useCallback(
+    async (action: EldilAction, eldilId: string) => {
+      if (!oyarsa) {
+        addLog('[WARN] Cannot perform eldil action: oyarsa not available');
+        return;
+      }
+
+      const eldilManager = oyarsa.getEldilManager();
+      addLog(`[ELDIL] ${action} ${eldilId || '(new)'}`);
+
+      if (action === 'spawn') {
+        addLog('[ELDIL] Use command palette to spawn new Eldil with task');
+      } else if (action === 'stop' && eldilId) {
+        const result = await eldilManager.stop(eldilId);
+        if (result.success) {
+          setState((prev) => ({
+            ...prev,
+            eldila: prev.eldila.map((e) =>
+              e.id === eldilId ? { ...e, state: { ...e.state, status: 'completed' as const } } : e
+            ),
+          }));
+          addLog(`[ELDIL] Stopped ${eldilId}`);
+        } else {
+          addLog(`[ERROR] Failed to stop ${eldilId}: ${result.error}`);
+        }
+      } else if (action === 'view' && eldilId) {
+        const outputs = eldilManager.getOutputs(eldilId);
+        addLog(`[ELDIL] ${eldilId} has ${outputs.length} outputs`);
+      }
+    },
+    [oyarsa, addLog]
+  );
+
   const watchHnauLogs = useCallback((hnauId: string) => {
     const logRoot = config.logs?.root ?? 'logs';
     const logFile = `${repoRoot}/${logRoot}/${hnauId}.log`;
@@ -170,17 +232,63 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
     setTimeout(checkForErrors, 5000);
   }, [config.logs?.root, repoRoot, updateHnauStatus]);
 
+  const syncTasks = useCallback(async () => {
+    if (!oyarsa) {
+      addLog('[WARN] Cannot sync tasks: oyarsa not available');
+      return;
+    }
+
+    addLog('[SYNC] Syncing tasks from beads...');
+    const beadsManager = oyarsa.getBeadsManager();
+    
+    await beadsManager.sync();
+    const tasksResult = await beadsManager.listReady();
+    
+    if (tasksResult.success && tasksResult.data) {
+      setState((prev) => ({
+        ...prev,
+        tasks: tasksResult.data ?? [],
+      }));
+      addLog(`[SYNC] Loaded ${tasksResult.data.length} ready tasks`);
+    } else {
+      addLog(`[ERROR] Failed to sync tasks: ${tasksResult.error}`);
+    }
+  }, [oyarsa, addLog]);
+
+  const refreshAll = useCallback(async () => {
+    if (!oyarsa) return;
+
+    addLog('[REFRESH] Refreshing all data...');
+    
+    const [fields, eldila] = await Promise.all([
+      oyarsa.getFields(),
+      Promise.resolve(oyarsa.getEldilManager().list()),
+    ]);
+
+    const hnauRuntimes = oyarsa.getHnauManager().list();
+
+    setState((prev) => ({
+      ...prev,
+      fields,
+      eldila,
+      hnauRuntimes,
+    }));
+
+    await syncTasks();
+    addLog('[REFRESH] Complete');
+  }, [oyarsa, addLog, syncTasks]);
+
   const commands = useMemo(
     () =>
       createDefaultCommands({
         onFieldSwitch: setActiveField,
         onNewTask: () => addLog('[CMD] New task'),
         onSpawnEldil: () => addLog('[CMD] Spawn eldil'),
-        onSyncTasks: () => addLog('[CMD] Sync tasks'),
-        onRefresh: () => addLog('[CMD] Refresh'),
+        onSyncTasks: syncTasks,
+        onRefresh: refreshAll,
         onQuit: handleQuit,
       }),
-    [setActiveField, addLog, handleQuit]
+    [setActiveField, addLog, handleQuit, syncTasks, refreshAll]
   );
 
   useKeyboard((event) => {
@@ -204,6 +312,7 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         onFieldSwitch={setActiveField}
         onCommand={addLog}
         onHnauAction={handleHnauAction}
+        onEldilAction={handleEldilAction}
         navigationDisabled={state.showCommandPalette}
       />
       <CommandPalette
