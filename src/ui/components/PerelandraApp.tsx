@@ -478,35 +478,27 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         return;
       }
 
-      const activeFieldInfo = state.fields.find((f) => f.name === state.activeField);
-      if (!activeFieldInfo) {
-        addLog(`[ERROR] Cannot spawn eldil: field ${state.activeField} not found`);
-        return;
-      }
-
       addLog(`[ELDIL] Spawning ${data.tool} agent...`);
 
-      const eldilManager = oyarsa.getEldilManager();
-      const result = await eldilManager.spawn({
-        fieldName: state.activeField,
-        fieldPath: activeFieldInfo.path,
-        taskId: data.taskId,
-        prompt: data.prompt,
-        tool: data.tool,
-        useTmux: state.tmuxAvailable,
-      });
+      const runtime = await oyarsa.spawnEldilForTask(
+        state.activeField,
+        data.prompt,
+        data.taskId,
+        undefined,
+        data.tool
+      );
 
-      if (result.success && result.data) {
+      if (runtime) {
         setState((prev) => ({
           ...prev,
-          eldila: [...prev.eldila, result.data!],
+          eldila: [...prev.eldila, runtime],
         }));
-        addLog(`[ELDIL] Spawned ${result.data.id}${data.taskId ? ` for task ${data.taskId}` : ''}`);
+        addLog(`[ELDIL] Spawned ${runtime.id}${data.taskId ? ` for task ${data.taskId}` : ''}`);
       } else {
-        addLog(`[ERROR] Failed to spawn eldil: ${result.error}`);
+        addLog(`[ERROR] Failed to spawn eldil`);
       }
     },
-    [oyarsa, addLog, state.activeField, state.fields, state.tmuxAvailable]
+    [oyarsa, addLog, state.activeField]
   );
 
   const closeTaskDetailDialog = useCallback(() => {

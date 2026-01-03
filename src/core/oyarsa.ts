@@ -446,7 +446,8 @@ export class Oyarsa {
     fieldName: string,
     prompt: string,
     taskId?: string,
-    hnauId?: string
+    hnauId?: string,
+    tool?: 'amp' | 'opencode'
   ): Promise<EldilRuntime | null> {
     const field = this.stateManager.getField(fieldName);
     if (!field) {
@@ -460,6 +461,7 @@ export class Oyarsa {
       prompt,
       taskId,
       hnauId,
+      tool,
     };
 
     const result = await this.eldilManager.spawn(spawnOptions);
