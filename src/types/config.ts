@@ -1,0 +1,53 @@
+export type HandramitName = 'dev' | 'stage' | 'prod' | string;
+
+export interface HealthCheckConfig {
+  url: string;
+  intervalSeconds?: number;
+  timeoutMs?: number;
+}
+
+export interface HnauConfig {
+  id: string;
+  description?: string;
+  root: string;
+  devCommand: string;
+  dockerComposeService?: string;
+  env?: Record<string, string>;
+  logFiles?: string[];
+  port?: number;
+  healthCheck?: HealthCheckConfig;
+}
+
+export interface FieldConfig {
+  name: string;
+  baseBranch?: string;
+  branch?: string;
+  path?: string;
+}
+
+export interface HandramitConfig {
+  description?: string;
+  hnauEnabled?: string[];
+}
+
+export interface LogsConfig {
+  root?: string;
+  maxSizeMb?: number;
+  maxFiles?: number;
+}
+
+export interface BeadsConfig {
+  root?: string;
+}
+
+export interface PerelandraConfig {
+  version: string;
+  repoRoot?: string;
+  defaultHandramit?: HandramitName;
+  handramits?: Record<HandramitName, HandramitConfig>;
+  hnau: HnauConfig[];
+  fields?: FieldConfig[];
+  dockerComposeFile?: string;
+  logs?: LogsConfig;
+  beads?: BeadsConfig;
+}

@@ -1,0 +1,31 @@
+{
+  "name": "perelandra",
+  "version": "0.1.0",
+  "description": "AI Agent Orchestrator for multi-service development",
+  "type": "module",
+  "main": "src/cli/index.ts",
+  "bin": {
+    "perelandra": "./bin/perelandra"
+  },
+  "scripts": {
+    "dev": "bun run src/cli/index.ts",
+    "build": "bun build src/cli/index.ts --outdir dist --target bun",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

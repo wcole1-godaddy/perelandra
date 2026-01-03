@@ -1,0 +1,8 @@
+node_modules/
+dist/
+logs/
+fields/
+coverage/
+*.log
+.DS_Store
+bun.lockb

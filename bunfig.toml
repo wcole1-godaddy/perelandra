@@ -1,0 +1,15 @@
+# Bun configuration for Perelandra
+# https://bun.sh/docs/runtime/bunfig
+
+[install]
+# Use exact versions for reproducibility
+exact = true
+
+[run]
+# Enable source maps for better error traces
+sourcemap = "inline"
+
+[test]
+# Test configuration
+coverage = true
+coverageDir = "coverage"

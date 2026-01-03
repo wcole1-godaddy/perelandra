@@ -1,0 +1,71 @@
+version: "1"
+repoRoot: "."
+dockerComposeFile: "docker-compose.yml"
+
+logs:
+  root: "logs"
+  maxSizeMb: 50
+  maxFiles: 5
+
+beads:
+  root: ".beads"
+
+hnau:
+  - id: "app-registry-api"
+    description: "3P app registration and management API"
+    root: "services/app-registry-api"
+    devCommand: "pnpm dev"
+    env:
+      NODE_ENV: "development"
+    logFiles:
+      - "logs/app-registry-dev.log"
+    port: 4000
+    healthCheck:
+      url: "http://localhost:4000/health"
+      intervalSeconds: 10
+
+  - id: "router"
+    description: "Traefik router configuration"
+    root: "infra/router"
+    devCommand: "docker-compose up traefik"
+    dockerComposeService: "traefik"
+    logFiles:
+      - "logs/traefik.log"
+
+  - id: "metrics-api"
+    description: "Metrics and telemetry API"
+    root: "services/metrics-api"
+    devCommand: "pnpm dev"
+    logFiles:
+      - "logs/metrics-dev.log"
+    port: 4100
+
+  - id: "post-action-service"
+    description: "Post-action event processing service"
+    root: "services/post-action-service"
+    devCommand: "pnpm dev"
+    logFiles:
+      - "logs/post-action-dev.log"
+    port: 4200
+
+fields:
+  - name: "baseline"
+    baseBranch: "main"
+    branch: "baseline/perelandra"
+  - name: "router-spike"
+    baseBranch: "main"
+    branch: "spike/router-ai-refactor"
+
+handramits:
+  dev:
+    description: "Development environment with all services"
+    hnauEnabled:
+      - "app-registry-api"
+      - "router"
+      - "metrics-api"
+      - "post-action-service"
+  stage:
+    description: "Staging environment"
+    hnauEnabled:
+      - "app-registry-api"
+      - "router"
