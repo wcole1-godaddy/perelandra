@@ -16,6 +16,15 @@ export interface HnauConfig {
   logFiles?: string[];
   port?: number;
   healthCheck?: HealthCheckConfig;
+
+  // Test verification
+  testCommand?: string;
+  testTimeout?: number;
+
+  // UI/Playwright verification
+  uiTestCommand?: string;
+  uiTestTimeout?: number;
+  uiScreenshotDir?: string;
 }
 
 export interface FieldConfig {

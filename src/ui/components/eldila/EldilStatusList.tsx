@@ -124,7 +124,7 @@ export function EldilStatusList({
         <text fg={theme.text}>spawn</text>
         <text fg={theme.textMuted}>enter</text>
         <text fg={theme.text}>view</text>
-        <text fg={theme.textMuted}>k</text>
+        <text fg={theme.textMuted}>d</text>
         <text fg={theme.text}>kill</text>
       </box>
     </box>

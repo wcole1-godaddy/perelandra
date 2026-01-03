@@ -51,11 +51,14 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauActi
       }
     },
     onEldilAction: (action, index) => {
+      onCommand(`[DEBUG] eldilAction: ${action} index=${index} count=${filteredEldila.length}`);
       const eldil = filteredEldila[index];
       if (eldil && onEldilAction) {
         onEldilAction(action, eldil.id);
       } else if (action === 'spawn' && onEldilAction) {
         onEldilAction('spawn', '');
+      } else {
+        onCommand(`[DEBUG] No eldil at index ${index}`);
       }
     },
     onTaskAction: (action, index) => {

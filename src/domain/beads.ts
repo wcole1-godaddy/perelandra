@@ -1,5 +1,8 @@
 import { $ } from 'bun';
 import type { BeadsTaskMetadata, BeadsTaskStatus, BeadsTaskCreator, TaskHistoryEntry } from '../types/beads';
+import type { HnauConfig, PerelandraConfig } from '../types/config';
+import type { FieldState } from '../types/runtime';
+import { FieldManager, type FieldInfo } from './field';
 
 export interface BeadsResult<T = void> {
   success: boolean;
@@ -59,6 +62,12 @@ export class BeadsManager {
 
       if (options.type) {
         args.push('--type', options.type);
+      }
+
+      // Encode fieldName and hnauId as labels
+      args.push('--label', `field:${options.fieldName}`);
+      if (options.hnauId) {
+        args.push('--label', `hnau:${options.hnauId}`);
       }
 
       if (options.labels && options.labels.length > 0) {
@@ -233,20 +242,47 @@ export class BeadsManager {
 
   private parseTaskOutput(output: unknown): BeadsTaskMetadata {
     const obj = output as Record<string, unknown>;
+    const rawLabels = Array.isArray(obj.labels) ? obj.labels.map(String) : [];
+
+    // Extract fieldName and hnauId from labels
+    const { fieldName, hnauId, labels } = this.extractFieldAndHnauFromLabels(rawLabels);
+
     return {
       id: String(obj.id ?? ''),
       title: String(obj.title ?? ''),
       description: obj.description ? String(obj.description) : undefined,
-      fieldName: String(obj.fieldName ?? 'main'),
-      hnauId: obj.hnauId ? String(obj.hnauId) : undefined,
+      fieldName: fieldName ?? String(obj.fieldName ?? 'main'),
+      hnauId: hnauId ?? (obj.hnauId ? String(obj.hnauId) : undefined),
       createdBy: (obj.createdBy as BeadsTaskCreator) ?? 'human',
       createdAt: String(obj.createdAt ?? new Date().toISOString()),
       status: this.normalizeStatus(obj.status),
-      labels: Array.isArray(obj.labels) ? obj.labels.map(String) : undefined,
+      labels: labels.length > 0 ? labels : undefined,
       relatedCommits: Array.isArray(obj.relatedCommits)
         ? obj.relatedCommits.map(String)
         : undefined,
     };
+  }
+
+  private extractFieldAndHnauFromLabels(labels: string[]): {
+    fieldName: string | undefined;
+    hnauId: string | undefined;
+    labels: string[];
+  } {
+    let fieldName: string | undefined;
+    let hnauId: string | undefined;
+    const remainingLabels: string[] = [];
+
+    for (const label of labels) {
+      if (label.startsWith('field:')) {
+        fieldName = label.slice(6);
+      } else if (label.startsWith('hnau:')) {
+        hnauId = label.slice(5);
+      } else {
+        remainingLabels.push(label);
+      }
+    }
+
+    return { fieldName, hnauId, labels: remainingLabels };
   }
 
   private parseTaskListOutput(
@@ -264,5 +300,77 @@ export class BeadsManager {
     }
 
     return tasks;
+  }
+
+  /**
+   * Resolves the FieldState for a task, creating the field if it doesn't exist.
+   */
+  async resolveFieldForTask(
+    task: BeadsTaskMetadata,
+    config: PerelandraConfig,
+    repoRoot: string
+  ): Promise<BeadsResult<FieldState>> {
+    const fieldManager = new FieldManager(config, repoRoot);
+    const fieldResult = await fieldManager.get(task.fieldName);
+
+    if (fieldResult.success && fieldResult.data) {
+      if (!fieldResult.data.exists) {
+        const createResult = await fieldManager.create(task.fieldName);
+        if (!createResult.success || !createResult.data) {
+          return { success: false, error: createResult.error ?? 'Failed to create field' };
+        }
+        return { success: true, data: fieldManager.toFieldState(createResult.data) };
+      }
+      return { success: true, data: fieldManager.toFieldState(fieldResult.data) };
+    }
+
+    const createResult = await fieldManager.create(task.fieldName);
+    if (!createResult.success || !createResult.data) {
+      return { success: false, error: createResult.error ?? 'Failed to create field' };
+    }
+    return { success: true, data: fieldManager.toFieldState(createResult.data) };
+  }
+
+  /**
+   * Resolves the HnauConfig for a task.
+   * If hnauId is set, returns that hnau's config.
+   * Otherwise, infers from task content or returns undefined.
+   */
+  resolveHnauForTask(
+    task: BeadsTaskMetadata,
+    config: PerelandraConfig
+  ): HnauConfig | undefined {
+    if (task.hnauId) {
+      return config.hnau.find((h) => h.id === task.hnauId);
+    }
+
+    return this.inferHnauFromTask(task, config);
+  }
+
+  /**
+   * Attempts to infer which hnau a task should target based on content.
+   * Returns undefined if no inference can be made.
+   */
+  private inferHnauFromTask(
+    task: BeadsTaskMetadata,
+    config: PerelandraConfig
+  ): HnauConfig | undefined {
+    const content = `${task.title} ${task.description ?? ''}`.toLowerCase();
+
+    for (const hnau of config.hnau) {
+      const hnauId = hnau.id.toLowerCase();
+      if (content.includes(hnauId)) {
+        return hnau;
+      }
+    }
+
+    const labels = task.labels ?? [];
+    for (const hnau of config.hnau) {
+      if (labels.some((l) => l.toLowerCase() === hnau.id.toLowerCase())) {
+        return hnau;
+      }
+    }
+
+    return undefined;
   }
 }

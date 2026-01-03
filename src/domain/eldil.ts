@@ -10,13 +10,19 @@ import type {
   EldilStatus,
   EldilPoolStats,
   QueuedSpawn,
+  EldilHandoffReason,
+  AmpUsage,
+  StreamJSONMessage,
 } from '../types/eldil';
 import type { TmuxManager } from './tmux';
 import { EldilError } from '../util/errors';
+import { ContextMonitor } from './context-monitor';
 
 const DEFAULT_TOOL: EldilTool = 'amp';
 const DEFAULT_MAX_WORKERS_PER_FIELD = 3;
 const DEFAULT_MAX_TOTAL_WORKERS = 10;
+const DEFAULT_CONTEXT_THRESHOLD_RATIO = 0.8;
+const DEFAULT_MAX_AUTO_HANDOFF_DEPTH = 3;
 
 interface RequiredManagerOptions {
   defaultTool: EldilTool;
@@ -24,6 +30,8 @@ interface RequiredManagerOptions {
   logOutputs: boolean;
   maxWorkersPerField: number;
   maxTotalWorkers: number;
+  contextThresholdRatio: number;
+  maxAutoHandoffDepth: number;
 }
 
 export class EldilManager {
@@ -33,6 +41,7 @@ export class EldilManager {
   private idCounter = 0;
   private spawnQueue: QueuedSpawn[] = [];
   private onWorkerComplete?: (runtime: EldilRuntime) => void;
+  private contextMonitor: ContextMonitor;
 
   constructor(options: EldilManagerOptions = {}) {
     this.options = {
@@ -41,7 +50,19 @@ export class EldilManager {
       logOutputs: options.logOutputs ?? true,
       maxWorkersPerField: options.maxWorkersPerField ?? DEFAULT_MAX_WORKERS_PER_FIELD,
       maxTotalWorkers: options.maxTotalWorkers ?? DEFAULT_MAX_TOTAL_WORKERS,
+      contextThresholdRatio: options.contextThresholdRatio ?? DEFAULT_CONTEXT_THRESHOLD_RATIO,
+      maxAutoHandoffDepth: options.maxAutoHandoffDepth ?? DEFAULT_MAX_AUTO_HANDOFF_DEPTH,
     };
+
+    this.contextMonitor = new ContextMonitor(
+      {
+        onHandoffNeeded: (eldilId, reason) => this.handleContextHandoff(eldilId, reason),
+      },
+      {
+        thresholdRatio: this.options.contextThresholdRatio,
+        maxAutoHandoffDepth: this.options.maxAutoHandoffDepth,
+      }
+    );
   }
 
   setTmuxManager(tmux: TmuxManager): void {
@@ -110,6 +131,14 @@ export class EldilManager {
       config,
       state,
       outputs: [],
+      fieldPath: options.fieldPath,
+      initialPrompt: options.prompt,
+    };
+
+    state.threadChain = {
+      threadUrl: undefined,
+      rootThreadUrl: undefined,
+      previousThreadUrls: [],
     };
 
     try {
@@ -205,8 +234,7 @@ export class EldilManager {
     const escapedPrompt = prompt.replace(/'/g, "'\\''");
 
     if (config.tool === 'amp') {
-      const flags: string[] = [];
-      if (config.executeMode) flags.push('--execute');
+      const flags: string[] = ['--execute'];
       if (config.streamJson) flags.push('--stream-json');
       return `amp ${flags.join(' ')} '${escapedPrompt}'`;
     } else if (config.tool === 'opencode') {
@@ -222,6 +250,8 @@ export class EldilManager {
     runtime: EldilRuntime,
     proc: ReturnType<typeof Bun.spawn>
   ): void {
+    const isStreamJson = runtime.config.streamJson && runtime.config.tool === 'amp';
+
     const processStream = async (
       stream: ReadableStream<Uint8Array> | null,
       type: 'text' | 'error'
@@ -230,20 +260,52 @@ export class EldilManager {
 
       const reader = stream.getReader();
       const decoder = new TextDecoder();
+      let buffer = '';
 
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const text = decoder.decode(value);
-          const output: EldilOutput = {
-            type,
-            content: text,
-            timestamp: new Date().toISOString(),
-          };
+          const chunk = decoder.decode(value);
 
-          runtime.outputs.push(output);
+          if (!isStreamJson || type === 'error') {
+            runtime.outputs.push({
+              type,
+              content: chunk,
+              timestamp: new Date().toISOString(),
+            });
+            continue;
+          }
+
+          buffer += chunk;
+          let newlineIndex;
+          while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+            const line = buffer.slice(0, newlineIndex).trim();
+            buffer = buffer.slice(newlineIndex + 1);
+
+            if (!line) continue;
+
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(line);
+            } catch {
+              runtime.outputs.push({
+                type: 'text',
+                content: line,
+                timestamp: new Date().toISOString(),
+              });
+              continue;
+            }
+
+            runtime.outputs.push({
+              type: 'json',
+              json: parsed,
+              timestamp: new Date().toISOString(),
+            });
+
+            this.processAmpEvent(runtime, parsed);
+          }
         }
       } catch {
         // Stream closed
@@ -274,6 +336,149 @@ export class EldilManager {
       this.onWorkerComplete?.(runtime);
       this.processQueue();
     });
+  }
+
+  private processAmpEvent(runtime: EldilRuntime, event: unknown): void {
+    if (!event || typeof event !== 'object') return;
+
+    const msg = event as StreamJSONMessage;
+
+    if (msg.session_id?.startsWith('T-')) {
+      const threadUrl = `https://ampcode.com/threads/${msg.session_id}`;
+      this.updateThreadChain(runtime, threadUrl);
+    }
+
+    let usage: AmpUsage | undefined;
+
+    if (msg.type === 'assistant' && msg.message?.usage) {
+      usage = msg.message.usage;
+    } else if (msg.type === 'result' && msg.usage) {
+      usage = msg.usage;
+    }
+
+    if (
+      usage &&
+      typeof usage.input_tokens === 'number' &&
+      typeof usage.output_tokens === 'number' &&
+      typeof usage.max_tokens === 'number'
+    ) {
+      this.contextMonitor.handleUsage(runtime, usage);
+    }
+  }
+
+  private updateThreadChain(runtime: EldilRuntime, url: string): void {
+    const chain = runtime.state.threadChain ?? {
+      threadUrl: undefined,
+      rootThreadUrl: undefined,
+      previousThreadUrls: [],
+    };
+
+    if (!chain.threadUrl) {
+      chain.threadUrl = url;
+      chain.rootThreadUrl = url;
+    } else if (chain.threadUrl !== url) {
+      chain.previousThreadUrls = [
+        ...(chain.previousThreadUrls ?? []),
+        chain.threadUrl,
+      ];
+      chain.threadUrl = url;
+    }
+
+    runtime.state.threadChain = chain;
+    runtime.state.threadUrl = chain.threadUrl;
+  }
+
+  async handleContextHandoff(
+    eldilId: string,
+    reason: EldilHandoffReason
+  ): Promise<void> {
+    const runtime = this.require(eldilId);
+    const now = new Date().toISOString();
+
+    if (runtime.state.handoff?.handoffChildId) {
+      return;
+    }
+
+    runtime.state.handoff = {
+      ...runtime.state.handoff,
+      reason,
+      triggeredAt: now,
+    };
+
+    const handoffPrompt = this.buildHandoffPrompt(runtime);
+
+    const spawnOptions: EldilSpawnOptions = {
+      fieldName: runtime.state.fieldName,
+      fieldPath: runtime.fieldPath,
+      hnauId: runtime.state.hnauId,
+      taskId: runtime.state.currentTaskId,
+      prompt: handoffPrompt,
+      tool: runtime.config.tool,
+      useTmux: false,
+    };
+
+    const result = await this.spawn(spawnOptions);
+    if (!result.success || !result.data) {
+      runtime.state.lastError = `Failed to spawn handoff Eldil: ${result.error}`;
+      return;
+    }
+
+    const child = result.data;
+
+    runtime.state.handoff = {
+      ...runtime.state.handoff,
+      handoffChildId: child.id,
+    };
+
+    child.state.handoff = {
+      parentEldilId: runtime.id,
+    };
+
+    const parentChain = runtime.state.threadChain;
+    if (parentChain) {
+      child.state.threadChain = {
+        rootThreadUrl: parentChain.rootThreadUrl ?? parentChain.threadUrl,
+        threadUrl: undefined,
+        previousThreadUrls: [
+          ...(parentChain.previousThreadUrls ?? []),
+          parentChain.threadUrl,
+        ].filter((u): u is string => !!u),
+      };
+    }
+
+    await this.stop(runtime.id);
+  }
+
+  private buildHandoffPrompt(runtime: EldilRuntime): string {
+    const { initialPrompt } = runtime;
+    const state = runtime.state;
+    const chain = state.threadChain;
+    const currentThreadUrl = chain?.threadUrl ?? state.threadUrl;
+    const previousThreads = chain?.previousThreadUrls ?? [];
+
+    const chainParts: string[] = [];
+    if (currentThreadUrl) {
+      chainParts.push(`Current thread: ${currentThreadUrl}`);
+    }
+    if (previousThreads.length > 0) {
+      chainParts.push(`Previous threads:\n${previousThreads.map((u) => `- ${u}`).join('\n')}`);
+    }
+    const chainText = chainParts.join('\n');
+
+    return `You are an Eldil (Amp worker agent) taking over an existing task because the previous Amp thread is approaching its context window limit.
+
+Original task / goal:
+${initialPrompt}
+
+${chainText || 'There is a single previous thread for this task.'}
+
+Use Amp's built-in handoff pattern:
+1. Treat the previous thread(s) as read-only history.
+2. Summarize the current state of the task, open issues, and key decisions.
+3. Create or use a new, focused working context (a fresh thread) that only carries forward the necessary information.
+4. Continue executing on the same task, minimizing repeated context expansions.
+
+Your job is to continue from where the previous Eldil left off, preserving intent and key constraints while working in a fresh context window.`;
   }
 
   private async processQueue(): Promise<void> {

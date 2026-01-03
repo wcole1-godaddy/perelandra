@@ -161,7 +161,7 @@ export function useNavigation(options: UseNavigationOptions): NavigationHandlers
         onEldilAction('spawn', selectedIndex);
         return;
       }
-      if (event.name === 'k') {
+      if (event.name === 'd') {
         onEldilAction('stop', selectedIndex);
         return;
       }

@@ -4,6 +4,7 @@ import { RootLayout } from './layout/RootLayout';
 import { CommandPalette, createDefaultCommands } from './common/CommandPalette';
 import { NewTaskDialog, type NewTaskData } from './tasks/NewTaskDialog';
 import { NewEldilDialog, type NewEldilData } from './eldila/NewEldilDialog';
+import { EldilDetailDialog } from './eldila/EldilDetailDialog';
 import { TaskDetailDialog } from './tasks/TaskDetailDialog';
 import type { BeadsTaskStatus } from '../../types/beads';
 import type { PerelandraConfig } from '../../types/config';
@@ -74,6 +75,8 @@ export interface AppState {
   showCommandPalette: boolean;
   showNewTaskDialog: boolean;
   showNewEldilDialog: boolean;
+  showEldilDetailDialog: boolean;
+  selectedEldilId: string | null;
   showTaskDetailDialog: boolean;
   selectedTaskId: string | null;
   tmuxAvailable: boolean;
@@ -100,6 +103,8 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
       showCommandPalette: false,
       showNewTaskDialog: false,
       showNewEldilDialog: false,
+      showEldilDetailDialog: false,
+      selectedEldilId: null,
       showTaskDetailDialog: false,
       selectedTaskId: null,
       tmuxAvailable: false,
@@ -254,8 +259,11 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
           addLog(`[ERROR] Failed to stop ${eldilId}: ${result.error}`);
         }
       } else if (action === 'view' && eldilId) {
-        const outputs = eldilManager.getOutputs(eldilId);
-        addLog(`[ELDIL] ${eldilId} has ${outputs.length} outputs`);
+        setState((prev) => ({
+          ...prev,
+          showEldilDetailDialog: true,
+          selectedEldilId: eldilId,
+        }));
       }
     },
     [oyarsa, addLog]
@@ -414,6 +422,32 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
   const closeNewEldilDialog = useCallback(() => {
     setState((prev) => ({ ...prev, showNewEldilDialog: false }));
   }, []);
+
+  const closeEldilDetailDialog = useCallback(() => {
+    setState((prev) => ({ ...prev, showEldilDetailDialog: false, selectedEldilId: null }));
+  }, []);
+
+  const handleStopEldil = useCallback(
+    async (eldilId: string) => {
+      if (!oyarsa) return;
+      const eldilManager = oyarsa.getEldilManager();
+      const result = await eldilManager.stop(eldilId);
+      if (result.success) {
+        setState((prev) => ({
+          ...prev,
+          eldila: prev.eldila.map((e) =>
+            e.id === eldilId ? { ...e, state: { ...e.state, status: 'completed' as const } } : e
+          ),
+          showEldilDetailDialog: false,
+          selectedEldilId: null,
+        }));
+        addLog(`[ELDIL] Stopped ${eldilId}`);
+      } else {
+        addLog(`[ERROR] Failed to stop ${eldilId}: ${result.error}`);
+      }
+    },
+    [oyarsa, addLog]
+  );
 
   const handleSpawnEldil = useCallback(
     async (data: NewEldilData) => {
@@ -596,7 +630,7 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         onHnauAction={handleHnauAction}
         onEldilAction={handleEldilAction}
         onTaskAction={handleTaskAction}
-        navigationDisabled={state.showCommandPalette || state.showNewTaskDialog || state.showNewEldilDialog || state.showTaskDetailDialog}
+        navigationDisabled={state.showCommandPalette || state.showNewTaskDialog || state.showNewEldilDialog || state.showEldilDetailDialog || state.showTaskDetailDialog}
       />
       <CommandPalette
         commands={commands}
@@ -618,6 +652,12 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         availableTasks={state.tasks
           .filter((t) => (t.fieldName === state.activeField || !t.fieldName) && t.status !== 'done')
           .map((t) => ({ id: t.id, title: t.title }))}
+      />
+      <EldilDetailDialog
+        isOpen={state.showEldilDetailDialog}
+        eldil={state.eldila.find((e) => e.id === state.selectedEldilId) ?? null}
+        onClose={closeEldilDetailDialog}
+        onStop={handleStopEldil}
       />
       <TaskDetailDialog
         isOpen={state.showTaskDetailDialog}
