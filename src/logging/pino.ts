@@ -9,27 +9,36 @@ export interface LoggerOptions {
 
 const DEFAULT_LOG_FILE = 'logs/perelandra.log';
 
-export function createLogger(options: LoggerOptions = {}): pino.Logger {
-  const { name = 'perelandra', level = 'info', logsConfig } = options;
+export interface CreateLoggerOptions extends LoggerOptions {
+  /** When true, only log to file (no stdout) - use when TUI is active */
+  fileOnly?: boolean;
+}
+
+export function createLogger(options: CreateLoggerOptions = {}): pino.Logger {
+  const { name = 'perelandra', level = 'info', logsConfig, fileOnly = false } = options;
 
   const logFile = logsConfig?.root
     ? `${logsConfig.root}/perelandra.log`
     : DEFAULT_LOG_FILE;
 
-  const transport = pino.transport({
-    targets: [
-      {
-        target: 'pino/file',
-        options: { destination: logFile, mkdir: true },
-        level: level,
-      },
-      {
-        target: 'pino-pretty',
-        options: { colorize: true },
-        level: level,
-      },
-    ],
-  });
+  const targets: pino.TransportTargetOptions[] = [
+    {
+      target: 'pino/file',
+      options: { destination: logFile, mkdir: true },
+      level: level,
+    },
+  ];
+
+  // Only add stdout transport when not in TUI mode
+  if (!fileOnly) {
+    targets.push({
+      target: 'pino-pretty',
+      options: { colorize: true },
+      level: level,
+    });
+  }
+
+  const transport = pino.transport({ targets });
 
   return pino({ name, level }, transport);
 }
@@ -43,7 +52,7 @@ export function getLogger(): pino.Logger {
   return globalLogger;
 }
 
-export function initLogger(options: LoggerOptions): pino.Logger {
+export function initLogger(options: CreateLoggerOptions): pino.Logger {
   globalLogger = createLogger(options);
   return globalLogger;
 }

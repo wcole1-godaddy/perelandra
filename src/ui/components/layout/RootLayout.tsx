@@ -3,9 +3,9 @@ import { useTerminalDimensions } from '@opentui/react';
 import { FieldHeaderBar } from './FieldHeaderBar';
 import { StatusBar } from './StatusBar';
 import { HnauStatusGrid } from '../hnau/HnauStatusGrid';
-import { TaskList } from '../tasks/TaskList';
+import { TaskKanban } from '../tasks/TaskKanban';
 import { EldilStatusList } from '../eldila/EldilStatusList';
-import { LogViewer } from '../logs/LogViewer';
+
 import type { PerelandraConfig } from '../../../types/config';
 import type { AppState } from '../PerelandraApp';
 import { theme } from '../../theme';
@@ -25,7 +25,7 @@ export interface RootLayoutProps {
 export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauAction, onEldilAction, navigationDisabled = false }: RootLayoutProps): React.ReactNode {
   const { width, height } = useTerminalDimensions();
 
-  const panes: FocusPane[] = ['hnau', 'tasks', 'eldila', 'logs'];
+  const panes: FocusPane[] = ['hnau', 'tasks', 'eldila'];
   const filteredEldila = state.eldila.filter((e) => e.state.fieldName === state.activeField);
   const itemCounts: Record<FocusPane, number> = {
     tasks: state.tasks.filter((t) => t.fieldName === state.activeField || !t.fieldName).length,
@@ -62,8 +62,7 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauActi
 
   const headerHeight = 3;
   const statusBarHeight = 1;
-  const logViewerHeight = Math.min(8, Math.floor(height * 0.2));
-  const mainContentHeight = height - headerHeight - statusBarHeight - logViewerHeight;
+  const mainContentHeight = height - headerHeight - statusBarHeight;
 
   // Opencode-style layout:
   // - Main background is dark (background)
@@ -85,7 +84,7 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauActi
       />
 
       {/* Main content area */}
-      <box style={{ flexDirection: 'row', height: mainContentHeight }}>
+      <box style={{ flexDirection: 'row', height: mainContentHeight, overflow: 'hidden' }}>
         {/* Left column: Services */}
         <HnauStatusGrid
           hnauRuntimes={state.hnauRuntimes}
@@ -97,7 +96,7 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauActi
 
         {/* Right column: Tasks + Eldila stacked */}
         <box style={{ flexDirection: 'column', width: rightColumnWidth }}>
-          <TaskList
+          <TaskKanban
             tasks={state.tasks}
             fieldName={state.activeField}
             onAction={onCommand}
@@ -113,13 +112,6 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauActi
           />
         </box>
       </box>
-
-      {/* Log viewer */}
-      <LogViewer
-        logs={state.logs}
-        height={logViewerHeight}
-        focused={navigation.focusedPane === 'logs'}
-      />
 
       {/* Status bar */}
       <StatusBar

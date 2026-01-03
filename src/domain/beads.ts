@@ -222,6 +222,15 @@ export class BeadsManager {
     return `${this.beadsRoot}/${fieldName}`;
   }
 
+  private normalizeStatus(status: unknown): BeadsTaskStatus {
+    const s = String(status ?? 'todo').toLowerCase();
+    if (s === 'open' || s === 'todo') return 'todo';
+    if (s === 'in_progress' || s === 'in-progress') return 'in-progress';
+    if (s === 'done' || s === 'closed' || s === 'completed') return 'done';
+    if (s === 'blocked') return 'blocked';
+    return 'todo';
+  }
+
   private parseTaskOutput(output: unknown): BeadsTaskMetadata {
     const obj = output as Record<string, unknown>;
     return {
@@ -232,7 +241,7 @@ export class BeadsManager {
       hnauId: obj.hnauId ? String(obj.hnauId) : undefined,
       createdBy: (obj.createdBy as BeadsTaskCreator) ?? 'human',
       createdAt: String(obj.createdAt ?? new Date().toISOString()),
-      status: (obj.status as BeadsTaskStatus) ?? 'todo',
+      status: this.normalizeStatus(obj.status),
       labels: Array.isArray(obj.labels) ? obj.labels.map(String) : undefined,
       relatedCommits: Array.isArray(obj.relatedCommits)
         ? obj.relatedCommits.map(String)

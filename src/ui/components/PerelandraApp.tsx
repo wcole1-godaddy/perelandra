@@ -315,6 +315,26 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
     addLog('[REFRESH] Complete');
   }, [oyarsa, addLog, syncTasks]);
 
+  useEffect(() => {
+    if (!oyarsa || !state.initialized) return;
+
+    const pollTasks = async () => {
+      const beadsManager = oyarsa.getBeadsManager();
+      const tasksResult = await beadsManager.listTasks();
+      if (tasksResult.success && tasksResult.data) {
+        setState((prev) => {
+          const prevIds = prev.tasks.map((t) => `${t.id}:${t.status}`).join(',');
+          const newIds = tasksResult.data!.map((t) => `${t.id}:${t.status}`).join(',');
+          if (prevIds === newIds) return prev;
+          return { ...prev, tasks: tasksResult.data! };
+        });
+      }
+    };
+
+    const interval = setInterval(pollTasks, 2000);
+    return () => clearInterval(interval);
+  }, [oyarsa, state.initialized]);
+
   const handleThemeChange = useCallback(
     (flavor: ThemeFlavorName) => {
       setState((prev) => ({ ...prev, themeFlavor: flavor }));
