@@ -40,6 +40,13 @@ export interface BeadsConfig {
   root?: string;
 }
 
+export interface RepoConfig {
+  id: string;
+  url: string;
+  path: string;
+  defaultBranch?: string;
+}
+
 export interface PerelandraConfig {
   version: string;
   repoRoot?: string;
@@ -47,6 +54,7 @@ export interface PerelandraConfig {
   handramits?: Record<HandramitName, HandramitConfig>;
   hnau: HnauConfig[];
   fields?: FieldConfig[];
+  repos?: RepoConfig[];
   dockerComposeFile?: string;
   logs?: LogsConfig;
   beads?: BeadsConfig;

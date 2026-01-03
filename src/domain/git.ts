@@ -199,3 +199,50 @@ export async function hasUncommittedChanges(cwd: string = process.cwd()): Promis
     return false;
   }
 }
+
+export async function cloneRepo(
+  url: string,
+  path: string,
+  options: { branch?: string } = {}
+): Promise<GitResult<{ path: string; branch: string }>> {
+  try {
+    const args = ['git', 'clone'];
+    if (options.branch) {
+      args.push('--branch', options.branch);
+    }
+    args.push(url, path);
+
+    await $`${args}`;
+
+    const branchResult = await getCurrentBranch(path);
+
+    return {
+      success: true,
+      data: {
+        path,
+        branch: branchResult.data ?? options.branch ?? 'main',
+      },
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: `Failed to clone repository: ${message}` };
+  }
+}
+
+export async function getRemoteUrl(cwd: string = process.cwd()): Promise<GitResult<string>> {
+  try {
+    const result = await $`git remote get-url origin`.cwd(cwd).text();
+    return { success: true, data: result.trim() };
+  } catch (err) {
+    return { success: false, error: 'No remote origin configured' };
+  }
+}
+
+export async function isGitRepo(path: string): Promise<boolean> {
+  try {
+    await $`git rev-parse --git-dir`.cwd(path).quiet();
+    return true;
+  } catch {
+    return false;
+  }
+}

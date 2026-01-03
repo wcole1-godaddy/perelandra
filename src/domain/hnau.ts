@@ -1,3 +1,5 @@
+import { mkdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { HnauConfig, PerelandraConfig } from '../types/config';
 import type {
   HnauRuntime,
@@ -90,17 +92,33 @@ export class HnauManager {
           ...options.env,
         };
 
-        const proc = Bun.spawn(['sh', '-c', devCommand], {
+        const logRoot = this.config.logs?.root ?? 'logs';
+        const repoRoot = this.config.repoRoot ?? '.';
+        const baseDir = repoRoot.startsWith('/') ? repoRoot : join(process.cwd(), repoRoot);
+        const logDir = join(baseDir, logRoot);
+        
+        if (!existsSync(logDir)) {
+          mkdirSync(logDir, { recursive: true });
+        }
+        
+        const logFile = join(logDir, `${id}.log`);
+        const logFileHandle = Bun.file(logFile);
+
+        const proc = Bun.spawn(['/bin/sh', '-c', devCommand], {
           cwd: workingDir,
           env,
-          stdout: 'pipe',
-          stderr: 'pipe',
+          stdout: logFileHandle,
+          stderr: logFileHandle,
+          stdin: 'ignore',
         });
+        proc.unref();
 
         runtime.process = {
           pid: proc.pid,
           startedAt: new Date().toISOString(),
+          subprocess: proc,
         };
+        runtime.logFile = logFile;
       }
 
       runtime.status = 'running';

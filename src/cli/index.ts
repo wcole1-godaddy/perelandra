@@ -6,6 +6,7 @@ import { createHnauCommand } from './commands/hnau';
 import { createTaskCommand } from './commands/task';
 import { createEldilCommand } from './commands/eldil';
 import { createSornCommand } from './commands/sorn';
+import { createRepoCommand } from './commands/repo';
 import { getRepoRoot } from '../domain/git';
 import { startUI } from '../ui';
 import { formatError, isPerelandraError } from '../util/errors';
@@ -87,9 +88,27 @@ program
         process.exit(1);
       }
 
+      const { createAndStartOyarsa } = await import('../core/oyarsa');
+      const oyarsa = await createAndStartOyarsa({
+        config,
+        repoRoot: repoRootResult.data,
+        autoPersist: true,
+      });
+
+      process.on('SIGINT', async () => {
+        await oyarsa.shutdown();
+        process.exit(0);
+      });
+
+      process.on('SIGTERM', async () => {
+        await oyarsa.shutdown();
+        process.exit(0);
+      });
+
       await startUI({
         config,
         repoRoot: repoRootResult.data,
+        oyarsa,
       });
     } catch (err) {
       if (isPerelandraError(err)) {
@@ -168,6 +187,7 @@ program.addCommand(createHnauCommand());
 program.addCommand(createTaskCommand());
 program.addCommand(createEldilCommand());
 program.addCommand(createSornCommand());
+program.addCommand(createRepoCommand());
 
 const logsCmd = program
   .command('logs')

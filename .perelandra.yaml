@@ -1,71 +1,77 @@
 version: "1"
-repoRoot: "."
-dockerComposeFile: "docker-compose.yml"
-
+repoRoot: .
+dockerComposeFile: docker-compose.yml
 logs:
-  root: "logs"
+  root: logs
   maxSizeMb: 50
   maxFiles: 5
-
 beads:
-  root: ".beads"
-
+  root: .beads
 hnau:
-  - id: "app-registry-api"
-    description: "3P app registration and management API"
-    root: "services/app-registry-api"
-    devCommand: "pnpm dev"
+  - id: app-registry-api
+    description: 3P app registration and management API
+    root: repos/app-registry-api
+    devCommand: pnpm dev
     env:
-      NODE_ENV: "development"
+      NODE_ENV: development
     logFiles:
-      - "logs/app-registry-dev.log"
+      - logs/app-registry-dev.log
     port: 4000
     healthCheck:
-      url: "http://localhost:4000/health"
+      url: http://localhost:4000/health
       intervalSeconds: 10
-
-  - id: "router"
-    description: "Traefik router configuration"
-    root: "infra/router"
-    devCommand: "docker-compose up traefik"
-    dockerComposeService: "traefik"
+  - id: router
+    description: Traefik router configuration
+    root: infra/router
+    devCommand: docker-compose up traefik
+    dockerComposeService: traefik
     logFiles:
-      - "logs/traefik.log"
-
-  - id: "metrics-api"
-    description: "Metrics and telemetry API"
-    root: "services/metrics-api"
-    devCommand: "pnpm dev"
+      - logs/traefik.log
+  - id: metrics-api
+    description: Metrics and telemetry API
+    root: services/metrics-api
+    devCommand: pnpm dev
     logFiles:
-      - "logs/metrics-dev.log"
+      - logs/metrics-dev.log
     port: 4100
-
-  - id: "post-action-service"
-    description: "Post-action event processing service"
-    root: "services/post-action-service"
-    devCommand: "pnpm dev"
+  - id: post-action-service
+    description: Post-action event processing service
+    root: repos/applications-post-actions-service
+    devCommand: pnpm dev
     logFiles:
-      - "logs/post-action-dev.log"
+      - logs/post-action-dev.log
     port: 4200
-
+  - id: checkout-api
+    root: repos/checkout-api
+    devCommand: pnpm dev
+    logFiles:
+      - logs/checkout-api-dev.log
 fields:
-  - name: "baseline"
-    baseBranch: "main"
-    branch: "baseline/perelandra"
-  - name: "router-spike"
-    baseBranch: "main"
-    branch: "spike/router-ai-refactor"
-
+  - name: baseline
+    baseBranch: main
+    branch: baseline/perelandra
+  - name: router-spike
+    baseBranch: main
+    branch: spike/router-ai-refactor
 handramits:
   dev:
-    description: "Development environment with all services"
+    description: Development environment with all services
     hnauEnabled:
-      - "app-registry-api"
-      - "router"
-      - "metrics-api"
-      - "post-action-service"
+      - app-registry-api
+      - router
+      - metrics-api
+      - post-action-service
   stage:
-    description: "Staging environment"
+    description: Staging environment
     hnauEnabled:
-      - "app-registry-api"
-      - "router"
+      - app-registry-api
+      - router
+repos:
+  - id: app-registry-api
+    url: git@github.com:gdcorp-commerce/app-registry-api.git
+    path: repos/app-registry-api
+    defaultBranch: main
+  - id: checkout-api
+    url: git@github.com:gdcorp-commerce/checkout-api.git
+    path: repos/checkout-api
+    defaultBranch: main

@@ -43,6 +43,13 @@ const BeadsConfigSchema = z.object({
   root: z.string().optional(),
 });
 
+const RepoConfigSchema = z.object({
+  id: z.string(),
+  url: z.string(),
+  path: z.string(),
+  defaultBranch: z.string().optional(),
+});
+
 export const PerelandraConfigSchema = z.object({
   version: z.string(),
   repoRoot: z.string().optional(),
@@ -50,6 +57,7 @@ export const PerelandraConfigSchema = z.object({
   handramits: z.record(HandramitConfigSchema).optional(),
   hnau: z.array(HnauConfigSchema),
   fields: z.array(FieldConfigSchema).optional(),
+  repos: z.array(RepoConfigSchema).optional(),
   dockerComposeFile: z.string().optional(),
   logs: LogsConfigSchema.optional(),
   beads: BeadsConfigSchema.optional(),

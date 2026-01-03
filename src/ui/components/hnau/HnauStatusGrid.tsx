@@ -80,15 +80,21 @@ export function HnauStatusGrid({
             ? ' ✗'
             : '';
           const isSelected = focused && idx === selectedIndex;
+          const hasError = runtime.status === 'error' && runtime.lastError;
 
           return (
-            <box key={runtime.config.id} style={{ flexDirection: 'row' }}>
-              <text fg={isSelected ? theme.accent.primary : color}>
-                {isSelected ? '▸ ' : '  '}
-                {icon}{' '}
-              </text>
-              <text fg={isSelected ? theme.accent.primary : theme.text.primary}>{runtime.config.id}</text>
-              <text fg={theme.text.muted}>{port}{health}</text>
+            <box key={runtime.config.id} style={{ flexDirection: 'column' }}>
+              <box style={{ flexDirection: 'row' }}>
+                <text fg={isSelected ? theme.accent.primary : color}>
+                  {isSelected ? '▸ ' : '  '}
+                  {icon}{' '}
+                </text>
+                <text fg={isSelected ? theme.accent.primary : theme.text.primary}>{runtime.config.id}</text>
+                <text fg={theme.text.muted}>{port}{health}</text>
+              </box>
+              {hasError && (
+                <text fg={theme.status.error}>    └─ {runtime.lastError?.slice(0, 60)}...</text>
+              )}
             </box>
           );
         })

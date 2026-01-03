@@ -14,6 +14,7 @@ export interface HnauProcess {
   startedAt?: string;
   stoppedAt?: string;
   exitCode?: number;
+  subprocess?: import('bun').Subprocess;
 }
 
 export interface HnauRuntime {
@@ -23,6 +24,7 @@ export interface HnauRuntime {
   health?: HnauHealthState;
   tmuxPane?: string;
   logFile?: string;
+  lastError?: string;
 }
 
 export interface HnauStartOptions {

@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { Command } from 'commander';
 import { loadConfig } from '../../core/config';
 import { HnauManager } from '../../domain/hnau';
@@ -103,6 +105,51 @@ export function createHnauCommand(): Command {
 
       console.log(`✓ Stopped hnau: ${hnauId}`);
       manager.dispose();
+    });
+
+  hnauCmd
+    .command('logs <hnauId>')
+    .description('View logs for a Hnau')
+    .option('-f, --follow', 'Follow log output')
+    .option('-n, --lines <number>', 'Number of lines to show', '50')
+    .action(async (hnauId: string, options: { follow?: boolean; lines?: string }) => {
+      const { config } = await loadConfig();
+      const repoRootResult = await getRepoRoot();
+      if (!repoRootResult.success || !repoRootResult.data) {
+        console.error('Error:', repoRootResult.error);
+        process.exit(1);
+      }
+
+      const hnauConfig = config.hnau.find((h) => h.id === hnauId);
+      if (!hnauConfig) {
+        console.error(`Hnau not found: ${hnauId}`);
+        process.exit(1);
+      }
+
+      const logRoot = config.logs?.root ?? 'logs';
+      const logFile = join(repoRootResult.data, logRoot, `${hnauId}.log`);
+
+      if (!existsSync(logFile)) {
+        console.log(`No logs found for ${hnauId}`);
+        console.log(`Expected log file: ${logFile}`);
+        console.log('Start the service first with: perelandra hnau start', hnauId);
+        return;
+      }
+
+      if (options.follow) {
+        const tail = Bun.spawn(['tail', '-f', logFile], {
+          stdout: 'inherit',
+          stderr: 'inherit',
+        });
+        await tail.exited;
+      } else {
+        const lines = parseInt(options.lines ?? '50', 10);
+        const tail = Bun.spawn(['tail', `-${lines}`, logFile], {
+          stdout: 'inherit',
+          stderr: 'inherit',
+        });
+        await tail.exited;
+      }
     });
 
   return hnauCmd;

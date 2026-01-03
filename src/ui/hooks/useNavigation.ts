@@ -19,16 +19,19 @@ export interface NavigationHandlers {
   getSelectedIndex: (pane: FocusPane) => number;
 }
 
+export type HnauAction = 'start' | 'stop' | 'restart' | 'logs';
+
 export interface UseNavigationOptions {
   panes: FocusPane[];
   itemCounts: Record<FocusPane, number>;
   onEnter?: (pane: FocusPane, index: number) => void;
   onAction?: (action: string) => void;
+  onHnauAction?: (action: HnauAction, index: number) => void;
   disabled?: boolean;
 }
 
 export function useNavigation(options: UseNavigationOptions): NavigationHandlers {
-  const { panes, itemCounts, onEnter, onAction, disabled = false } = options;
+  const { panes, itemCounts, onEnter, onAction, onHnauAction, disabled = false } = options;
 
   const [focusedPane, setFocusedPane] = useState<FocusPane>(panes[0] ?? 'tasks');
   const [selectedIndices, setSelectedIndices] = useState<Map<FocusPane, number>>(
@@ -116,6 +119,25 @@ export function useNavigation(options: UseNavigationOptions): NavigationHandlers
     if (event.name === '4') {
       setFocusedPane('logs');
       return;
+    }
+
+    if (focusedPane === 'hnau' && onHnauAction) {
+      if (event.name === 's') {
+        onHnauAction('start', selectedIndex);
+        return;
+      }
+      if (event.name === 'x') {
+        onHnauAction('stop', selectedIndex);
+        return;
+      }
+      if (event.name === 'r') {
+        onHnauAction('restart', selectedIndex);
+        return;
+      }
+      if (event.name === 'l') {
+        onHnauAction('logs', selectedIndex);
+        return;
+      }
     }
   });
 

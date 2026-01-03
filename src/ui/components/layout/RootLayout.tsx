@@ -8,7 +8,7 @@ import { LogViewer } from '../logs/LogViewer';
 import type { PerelandraConfig } from '../../../types/config';
 import type { AppState } from '../PerelandraApp';
 import { theme } from '../../theme';
-import { useNavigation, type FocusPane } from '../../hooks/useNavigation';
+import { useNavigation, type FocusPane, type HnauAction } from '../../hooks/useNavigation';
 
 export interface RootLayoutProps {
   config: PerelandraConfig;
@@ -16,10 +16,11 @@ export interface RootLayoutProps {
   state: AppState;
   onFieldSwitch: (fieldName: string) => void;
   onCommand: (message: string) => void;
+  onHnauAction?: (action: HnauAction, hnauId: string) => void;
   navigationDisabled?: boolean;
 }
 
-export function RootLayout({ config, state, onFieldSwitch, onCommand, navigationDisabled = false }: RootLayoutProps): React.ReactNode {
+export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauAction, navigationDisabled = false }: RootLayoutProps): React.ReactNode {
   const { width, height } = useTerminalDimensions();
 
   const panes: FocusPane[] = ['hnau', 'tasks', 'eldila', 'logs'];
@@ -38,6 +39,12 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, navigation
     },
     onAction: (action) => {
       onCommand(`[Nav] ${action}`);
+    },
+    onHnauAction: (action, index) => {
+      const hnau = state.hnauRuntimes[index];
+      if (hnau && onHnauAction) {
+        onHnauAction(action, hnau.config.id);
+      }
     },
     disabled: navigationDisabled,
   });
