@@ -422,7 +422,7 @@ export class BeadsManager {
       title: String(obj.title ?? ''),
       description: obj.description ? String(obj.description) : undefined,
       fieldName: fieldName ?? String(obj.fieldName ?? 'main'),
-      hnauIds: allHnauIds.length > 0 ? allHnauIds : undefined,
+      hnauIds: hnauId ? [hnauId] : undefined,
       createdBy: (obj.createdBy as BeadsTaskCreator) ?? 'human',
       createdAt: String(obj.createdAt ?? obj.created_at ?? new Date().toISOString()),
       status: this.normalizeStatus(obj.status),
