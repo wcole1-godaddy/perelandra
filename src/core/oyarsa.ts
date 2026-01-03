@@ -11,6 +11,7 @@ import { TmuxManager } from '../domain/tmux';
 import { Maleldil } from '../domain/maleldil';
 import { logInfo, logWarn, logError } from '../logging/pino';
 import type { SornReviewResult } from '../types/sorn';
+import { eventBus } from './events';
 import { getDeepHeaven } from './deepheaven';
 import type { DeepHeavenConfig } from '../types/deepheaven';
 
@@ -211,6 +212,13 @@ export class Oyarsa {
       state.lastError
     );
 
+    eventBus.emit('eldil:statusChanged', {
+      eldilId: id,
+      fieldName: state.fieldName,
+      status: state.status,
+      taskId: state.currentTaskId,
+    });
+
     const fieldName = state.fieldName;
     const field = this.stateManager.getField(fieldName);
     if (field) {
@@ -226,6 +234,13 @@ export class Oyarsa {
       this.beadsManager.updateTask(state.currentTaskId, { status: 'blocked' }).catch((err) => {
         logError('Failed to update task status after Eldil failure', err);
       });
+      eventBus.emit('task:statusChanged', {
+        taskId: state.currentTaskId,
+        fieldName: state.fieldName,
+        to: 'blocked',
+        eldilId: id,
+        reason: 'blocked',
+      });
     }
 
     logInfo('Eldil completed', {
@@ -236,8 +251,17 @@ export class Oyarsa {
   }
 
   private async completeTaskWithReview(taskId: string, fieldPath: string): Promise<void> {
+    const task = await this.beadsManager.getTask(taskId);
+    const fieldName = task?.fieldName ?? '';
+
     if (!this.sornReviewOnComplete) {
       await this.beadsManager.updateTask(taskId, { status: 'done' });
+      eventBus.emit('task:statusChanged', {
+        taskId,
+        fieldName,
+        to: 'done',
+        reason: 'completed',
+      });
       logInfo('Task completed without Sorn review', { taskId });
       return;
     }
@@ -265,6 +289,12 @@ export class Oyarsa {
         status: 'blocked',
         labels: ['sorn-blocked'],
       });
+      eventBus.emit('task:statusChanged', {
+        taskId,
+        fieldName,
+        to: 'blocked',
+        reason: 'blocked',
+      });
       return;
     }
 
@@ -277,6 +307,12 @@ export class Oyarsa {
     }
 
     await this.beadsManager.updateTask(taskId, { status: 'done' });
+    eventBus.emit('task:statusChanged', {
+      taskId,
+      fieldName,
+      to: 'done',
+      reason: 'completed',
+    });
     logInfo('Task completed after Sorn review', { taskId, issueCount: reviewResult.issues.length });
   }
 
@@ -333,6 +369,23 @@ export class Oyarsa {
 
     if (taskId) {
       await this.beadsManager.updateTask(taskId, { status: 'in-progress' });
+    }
+
+    eventBus.emit('eldil:statusChanged', {
+      eldilId: result.data.id,
+      fieldName,
+      status: 'running',
+      taskId,
+    });
+
+    if (taskId) {
+      eventBus.emit('task:statusChanged', {
+        taskId,
+        fieldName,
+        to: 'in-progress',
+        eldilId: result.data.id,
+        reason: 'claimed',
+      });
     }
 
     logInfo('Eldil spawned', {

@@ -73,7 +73,7 @@ export class BeadsManager {
         args.push('--body', options.description);
       }
 
-      const output = await $`${args}`.cwd(this.cwd).text();
+      const output = await $`${args}`.cwd(this.cwd).quiet().text();
       const match = output.match(/Created:\s*(\S+)/);
       const taskId = match?.[1] ?? output.trim();
 
@@ -100,7 +100,7 @@ export class BeadsManager {
         }
       }
 
-      await $`${args}`.cwd(this.cwd);
+      await $`${args}`.cwd(this.cwd).quiet();
       return { success: true };
     } catch (err) {
       return {
@@ -112,7 +112,7 @@ export class BeadsManager {
 
   async closeTask(id: string): Promise<BeadsResult> {
     try {
-      await $`bd close ${id}`.cwd(this.cwd);
+      await $`bd close ${id}`.cwd(this.cwd).quiet();
       return { success: true };
     } catch (err) {
       return {
@@ -179,7 +179,7 @@ export class BeadsManager {
 
   async sync(): Promise<BeadsResult> {
     try {
-      await $`bd sync`.cwd(this.cwd);
+      await $`bd sync`.cwd(this.cwd).quiet();
       return { success: true };
     } catch (err) {
       return {

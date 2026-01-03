@@ -1,6 +1,7 @@
 import React from 'react';
 import type { BeadsTaskMetadata, BeadsTaskStatus, TaskHistoryEntry } from '../../../types/beads';
 import { theme, LeftBorder } from '../../theme';
+import { MarkdownText } from '../common/MarkdownText';
 
 export interface TaskDetailProps {
   task: BeadsTaskMetadata;
@@ -101,7 +102,9 @@ export function TaskDetail({
       {task.description && (
         <box style={{ marginTop: 1, flexDirection: 'column' }}>
           <text fg={theme.text} bold>Description:</text>
-          <text fg={theme.textMuted}>{task.description}</text>
+          <box style={{ marginTop: 1 }}>
+            <MarkdownText content={task.description} maxCodeHeight={15} />
+          </box>
         </box>
       )}
 

@@ -1,5 +1,6 @@
 import { mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { eventBus } from '../core/events';
 import type { HnauConfig, PerelandraConfig } from '../types/config';
 import type {
   HnauRuntime,
@@ -68,6 +69,7 @@ export class HnauManager {
 
     runtime.status = 'starting';
     this.runtimes.set(id, runtime);
+    eventBus.emit('hnau:statusChanged', { hnauId: id, status: 'starting' });
 
     try {
       const hnauConfig = runtime.config;
@@ -123,6 +125,7 @@ export class HnauManager {
 
       runtime.status = 'running';
       this.runtimes.set(id, runtime);
+      eventBus.emit('hnau:statusChanged', { hnauId: id, status: 'running' });
 
       if (hnauConfig.healthCheck) {
         this.startHealthCheck(id);
@@ -132,6 +135,11 @@ export class HnauManager {
     } catch (err) {
       runtime.status = 'error';
       this.runtimes.set(id, runtime);
+      eventBus.emit('hnau:statusChanged', {
+        hnauId: id,
+        status: 'error',
+        error: err instanceof Error ? err.message : String(err),
+      });
       return {
         success: false,
         hnauId: id,
@@ -155,6 +163,7 @@ export class HnauManager {
 
     runtime.status = 'stopping';
     this.runtimes.set(id, runtime);
+    eventBus.emit('hnau:statusChanged', { hnauId: id, status: 'stopping' });
 
     try {
       if (runtime.process?.pid) {
@@ -173,6 +182,7 @@ export class HnauManager {
         stoppedAt: new Date().toISOString(),
       };
       this.runtimes.set(id, runtime);
+      eventBus.emit('hnau:statusChanged', { hnauId: id, status: 'stopped' });
 
       return { success: true, hnauId: id, status: 'stopped' };
     } catch (err) {
@@ -186,6 +196,7 @@ export class HnauManager {
 
       runtime.status = 'stopped';
       this.runtimes.set(id, runtime);
+      eventBus.emit('hnau:statusChanged', { hnauId: id, status: 'stopped' });
 
       return { success: true, hnauId: id, status: 'stopped' };
     }

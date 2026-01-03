@@ -2,18 +2,30 @@ import { useKeyboard, useRenderer } from '@opentui/react';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { RootLayout } from './layout/RootLayout';
 import { CommandPalette, createDefaultCommands } from './common/CommandPalette';
+import { NewTaskDialog, type NewTaskData } from './tasks/NewTaskDialog';
+import { TaskDetailDialog } from './tasks/TaskDetailDialog';
+import type { BeadsTaskStatus } from '../../types/beads';
 import type { PerelandraConfig } from '../../types/config';
 import type { FieldInfo } from '../../domain/field';
 import type { BeadsTaskMetadata } from '../../types/beads';
 import type { HnauRuntime, HnauStatus } from '../../types/hnau';
 import type { EldilRuntime } from '../../types/eldil';
-import type { HnauAction, EldilAction } from '../hooks/useNavigation';
+import type { HnauAction, EldilAction, TaskAction } from '../hooks/useNavigation';
 import type { Oyarsa } from '../../core/oyarsa';
 import { TmuxManager } from '../../domain/tmux';
 import { HnauManager } from '../../domain/hnau';
 import { logInfo } from '../../logging/pino';
 import { ThemeProvider } from '../hooks/useTheme';
 import { type ThemeFlavorName, detectDefaultFlavor } from '../theme';
+import { useEventBusMulti } from '../hooks/useEventBus';
+import { eventBus, type LogMessageEvent } from '../../core/events';
+
+function formatLogMessage(ev: LogMessageEvent): string {
+  const timestamp = ev.timestamp ?? new Date().toISOString();
+  const levelPrefix = ev.level === 'error' ? '[ERROR]' : ev.level === 'warn' ? '[WARN]' : '[INFO]';
+  const sourcePrefix = ev.source ? `[${ev.source.toUpperCase()}]` : '';
+  return `${timestamp} ${levelPrefix}${sourcePrefix} ${ev.message}`;
+}
 
 export interface PerelandraAppProps {
   config: PerelandraConfig;
@@ -59,6 +71,9 @@ export interface AppState {
   tasks: BeadsTaskMetadata[];
   logs: string[];
   showCommandPalette: boolean;
+  showNewTaskDialog: boolean;
+  showTaskDetailDialog: boolean;
+  selectedTaskId: string | null;
   tmuxAvailable: boolean;
   initialized: boolean;
   themeFlavor: ThemeFlavorName;
@@ -81,6 +96,9 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
       tasks: [],
       logs: [],
       showCommandPalette: false,
+      showNewTaskDialog: false,
+      showTaskDetailDialog: false,
+      selectedTaskId: null,
       tmuxAvailable: false,
       initialized: false,
       themeFlavor: savedTheme,
@@ -239,6 +257,48 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
     [oyarsa, addLog]
   );
 
+  const handleTaskAction = useCallback(
+    async (action: TaskAction, taskId: string) => {
+      if (action === 'new') {
+        setState((prev) => ({ ...prev, showNewTaskDialog: true }));
+        return;
+      }
+
+      if (!oyarsa) {
+        addLog('[WARN] Cannot perform task action: oyarsa not available');
+        return;
+      }
+
+      const beadsManager = oyarsa.getBeadsManager();
+      addLog(`[TASK] ${action} ${taskId || '(new)'}`);
+
+      if (action === 'view' && taskId) {
+        setState((prev) => ({
+          ...prev,
+          showTaskDetailDialog: true,
+          selectedTaskId: taskId,
+        }));
+        return;
+      }
+      
+      if (action === 'close' && taskId) {
+        const result = await beadsManager.closeTask(taskId);
+        if (result.success) {
+          setState((prev) => ({
+            ...prev,
+            tasks: prev.tasks.map((t) =>
+              t.id === taskId ? { ...t, status: 'done' as const } : t
+            ),
+          }));
+          addLog(`[TASK] Closed ${taskId}`);
+        } else {
+          addLog(`[ERROR] Failed to close task ${taskId}: ${result.error}`);
+        }
+      }
+    },
+    [oyarsa, addLog]
+  );
+
   const watchHnauLogs = useCallback((hnauId: string) => {
     const logRoot = config.logs?.root ?? 'logs';
     const logFile = `${repoRoot}/${logRoot}/${hnauId}.log`;
@@ -315,10 +375,118 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
     addLog('[REFRESH] Complete');
   }, [oyarsa, addLog, syncTasks]);
 
+  const handleCreateTask = useCallback(
+    async (data: NewTaskData) => {
+      if (!oyarsa) {
+        addLog('[WARN] Cannot create task: oyarsa not available');
+        return;
+      }
+
+      const beadsManager = oyarsa.getBeadsManager();
+      addLog(`[TASK] Creating ${data.type}: ${data.title}`);
+
+      const result = await beadsManager.createTask({
+        title: data.title,
+        description: data.description,
+        fieldName: state.activeField,
+        createdBy: 'user',
+        type: data.type,
+      });
+
+      if (result.success && result.data) {
+        addLog(`[TASK] Created ${result.data}`);
+        await syncTasks();
+      } else {
+        addLog(`[ERROR] Failed to create task: ${result.error}`);
+      }
+    },
+    [oyarsa, addLog, state.activeField, syncTasks]
+  );
+
+  const closeNewTaskDialog = useCallback(() => {
+    setState((prev) => ({ ...prev, showNewTaskDialog: false }));
+  }, []);
+
+  const closeTaskDetailDialog = useCallback(() => {
+    setState((prev) => ({ ...prev, showTaskDetailDialog: false, selectedTaskId: null }));
+  }, []);
+
+  const handleTaskStatusChange = useCallback(
+    async (taskId: string, status: BeadsTaskStatus) => {
+      if (!oyarsa) {
+        addLog('[WARN] Cannot update task: oyarsa not available');
+        return;
+      }
+
+      const beadsManager = oyarsa.getBeadsManager();
+      addLog(`[TASK] Updating ${taskId} status to ${status}`);
+
+      const result = await beadsManager.updateTask(taskId, { status });
+      if (result.success) {
+        setState((prev) => ({
+          ...prev,
+          tasks: prev.tasks.map((t) =>
+            t.id === taskId ? { ...t, status } : t
+          ),
+        }));
+        addLog(`[TASK] Updated ${taskId} to ${status}`);
+      } else {
+        addLog(`[ERROR] Failed to update task: ${result.error}`);
+      }
+    },
+    [oyarsa, addLog]
+  );
+
+  useEventBusMulti(
+    {
+      'task:statusChanged': (ev) => {
+        setState((prev) => ({
+          ...prev,
+          tasks: prev.tasks.map((t) =>
+            t.id === ev.taskId ? { ...t, status: ev.to } : t
+          ),
+        }));
+      },
+      'eldil:statusChanged': (ev) => {
+        setState((prev) => ({
+          ...prev,
+          eldila: prev.eldila.map((e) =>
+            e.id === ev.eldilId
+              ? { ...e, state: { ...e.state, status: ev.status } }
+              : e
+          ),
+        }));
+      },
+      'hnau:statusChanged': (ev) => {
+        setState((prev) => ({
+          ...prev,
+          hnauRuntimes: prev.hnauRuntimes.map((h) =>
+            h.config.id === ev.hnauId
+              ? { ...h, status: ev.status, lastError: ev.error }
+              : h
+          ),
+        }));
+      },
+      'log:message': (ev) => {
+        const formatted = formatLogMessage(ev);
+        setState((prev) => ({
+          ...prev,
+          logs: [...prev.logs.slice(-100), formatted],
+        }));
+      },
+      'ui:refresh': (ev) => {
+        if (ev.target === 'all' || ev.target === 'tasks') {
+          syncTasks();
+        }
+      },
+    },
+    [syncTasks]
+  );
+
   useEffect(() => {
     if (!oyarsa || !state.initialized) return;
 
-    const pollTasks = async () => {
+    const fallbackSync = async () => {
       const beadsManager = oyarsa.getBeadsManager();
       const tasksResult = await beadsManager.listTasks();
       if (tasksResult.success && tasksResult.data) {
@@ -331,7 +499,7 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
       }
     };
 
-    const interval = setInterval(pollTasks, 2000);
+    const interval = setInterval(fallbackSync, 60000);
     return () => clearInterval(interval);
   }, [oyarsa, state.initialized]);
 
@@ -381,13 +549,26 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         onCommand={addLog}
         onHnauAction={handleHnauAction}
         onEldilAction={handleEldilAction}
-        navigationDisabled={state.showCommandPalette}
+        onTaskAction={handleTaskAction}
+        navigationDisabled={state.showCommandPalette || state.showNewTaskDialog || state.showTaskDetailDialog}
       />
       <CommandPalette
         commands={commands}
         isOpen={state.showCommandPalette}
         onClose={closeCommandPalette}
         onAction={addLog}
+      />
+      <NewTaskDialog
+        isOpen={state.showNewTaskDialog}
+        onClose={closeNewTaskDialog}
+        onCreate={handleCreateTask}
+        fieldName={state.activeField}
+      />
+      <TaskDetailDialog
+        isOpen={state.showTaskDetailDialog}
+        task={state.tasks.find((t) => t.id === state.selectedTaskId) ?? null}
+        onClose={closeTaskDetailDialog}
+        onStatusChange={handleTaskStatusChange}
       />
     </ThemeProvider>
   );

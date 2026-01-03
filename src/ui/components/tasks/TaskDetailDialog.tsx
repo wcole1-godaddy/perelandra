@@ -1,6 +1,7 @@
 import React from 'react';
 import { useKeyboard } from '@opentui/react';
 import { Dialog } from '../common/Dialog';
+import { MarkdownText } from '../common/MarkdownText';
 import type { BeadsTaskMetadata, BeadsTaskStatus, TaskHistoryEntry } from '../../../types/beads';
 import { theme } from '../../theme';
 
@@ -108,7 +109,9 @@ export function TaskDetailDialog({
         {task.description && (
           <box style={{ marginTop: 1, flexDirection: 'column' }}>
             <text fg={theme.text} bold>Description:</text>
-            <text fg={theme.textMuted}>{task.description}</text>
+            <box style={{ marginTop: 1 }}>
+              <MarkdownText content={task.description} maxCodeHeight={15} />
+            </box>
           </box>
         )}
 

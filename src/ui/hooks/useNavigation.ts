@@ -21,6 +21,7 @@ export interface NavigationHandlers {
 
 export type HnauAction = 'start' | 'stop' | 'restart' | 'logs';
 export type EldilAction = 'spawn' | 'stop' | 'view';
+export type TaskAction = 'new' | 'view' | 'close';
 
 export interface UseNavigationOptions {
   panes: FocusPane[];
@@ -29,11 +30,12 @@ export interface UseNavigationOptions {
   onAction?: (action: string) => void;
   onHnauAction?: (action: HnauAction, index: number) => void;
   onEldilAction?: (action: EldilAction, index: number) => void;
+  onTaskAction?: (action: TaskAction, index: number) => void;
   disabled?: boolean;
 }
 
 export function useNavigation(options: UseNavigationOptions): NavigationHandlers {
-  const { panes, itemCounts, onEnter, onAction, onHnauAction, onEldilAction, disabled = false } = options;
+  const { panes, itemCounts, onEnter, onAction, onHnauAction, onEldilAction, onTaskAction, disabled = false } = options;
 
   const [focusedPane, setFocusedPane] = useState<FocusPane>(panes[0] ?? 'tasks');
   const [selectedIndices, setSelectedIndices] = useState<Map<FocusPane, number>>(
@@ -98,9 +100,21 @@ export function useNavigation(options: UseNavigationOptions): NavigationHandlers
       return;
     }
 
-    if (event.name === 'return' && onEnter) {
-      onEnter(focusedPane, selectedIndex);
-      return;
+    if (event.name === 'return') {
+      // Handle pane-specific return actions first
+      if (focusedPane === 'tasks' && onTaskAction) {
+        onTaskAction('view', selectedIndex);
+        return;
+      }
+      if (focusedPane === 'eldila' && onEldilAction) {
+        onEldilAction('view', selectedIndex);
+        return;
+      }
+      // Fall back to generic onEnter for other panes
+      if (onEnter) {
+        onEnter(focusedPane, selectedIndex);
+        return;
+      }
     }
 
     if (event.name === '1') {
@@ -151,8 +165,15 @@ export function useNavigation(options: UseNavigationOptions): NavigationHandlers
         onEldilAction('stop', selectedIndex);
         return;
       }
-      if (event.name === 'return') {
-        onEldilAction('view', selectedIndex);
+    }
+
+    if (focusedPane === 'tasks' && onTaskAction) {
+      if (event.name === 'n') {
+        onTaskAction('new', selectedIndex);
+        return;
+      }
+      if (event.name === 'c') {
+        onTaskAction('close', selectedIndex);
         return;
       }
     }
