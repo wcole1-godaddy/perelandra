@@ -22,6 +22,7 @@ export interface TmuxPane {
   height: number;
   pid?: number;
   currentCommand?: string;
+  title?: string;
 }
 
 export interface TmuxResult<T = void> {
@@ -216,7 +217,7 @@ export class TmuxManager {
   async listPanes(window: string | number): Promise<TmuxResult<TmuxPane[]>> {
     try {
       const target = `${this.sessionName}:${window}`;
-      const output = await $`tmux list-panes -t ${target} -F '#{pane_index}|#{pane_active}|#{pane_width}|#{pane_height}|#{pane_pid}|#{pane_current_command}'`
+      const output = await $`tmux list-panes -t ${target} -F '#{pane_index}|#{pane_active}|#{pane_width}|#{pane_height}|#{pane_pid}|#{pane_current_command}|#{pane_title}'`
         .quiet()
         .text();
 
@@ -225,7 +226,7 @@ export class TmuxManager {
         .split('\n')
         .filter(Boolean)
         .map((line) => {
-          const [index, active, width, height, pid, cmd] = line.split('|');
+          const [index, active, width, height, pid, cmd, title] = line.split('|');
           return {
             index: parseInt(index, 10),
             active: active === '1',
@@ -233,6 +234,7 @@ export class TmuxManager {
             height: parseInt(height, 10),
             pid: pid ? parseInt(pid, 10) : undefined,
             currentCommand: cmd || undefined,
+            title: title || undefined,
           };
         });
 
@@ -368,6 +370,87 @@ export class TmuxManager {
   async createFieldWindow(fieldName: string, fieldPath: string): Promise<TmuxResult<number>> {
     const windowName = `field-${fieldName}`;
     return this.createWindow(windowName, { cwd: fieldPath });
+  }
+
+  async ensureFieldWindow(fieldName: string, fieldPath: string): Promise<TmuxResult<number>> {
+    const windowName = `field-${fieldName}`;
+    
+    const windowsResult = await this.listWindows();
+    if (windowsResult.success && windowsResult.data) {
+      const existing = windowsResult.data.find((w) => w.name === windowName);
+      if (existing) {
+        return { success: true, data: existing.index };
+      }
+    }
+    
+    return this.createWindow(windowName, { cwd: fieldPath });
+  }
+
+  async windowExists(windowName: string): Promise<boolean> {
+    const windowsResult = await this.listWindows();
+    if (!windowsResult.success || !windowsResult.data) {
+      return false;
+    }
+    return windowsResult.data.some((w) => w.name === windowName);
+  }
+
+  async paneExists(tmuxPane: string): Promise<boolean> {
+    const [windowName, paneStr] = tmuxPane.split('.');
+    if (!windowName) return false;
+    
+    const panesResult = await this.listPanes(windowName);
+    if (!panesResult.success || !panesResult.data) {
+      return false;
+    }
+    
+    const paneIndex = parseInt(paneStr, 10);
+    return panesResult.data.some((p) => p.index === paneIndex);
+  }
+
+  async setPaneTitle(
+    window: string | number,
+    pane: number,
+    title: string
+  ): Promise<TmuxResult> {
+    try {
+      const target = `${this.sessionName}:${window}.${pane}`;
+      await $`tmux select-pane -t ${target} -T ${title}`.quiet();
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  async getPaneByTitle(title: string): Promise<TmuxResult<{ window: string; pane: number } | null>> {
+    try {
+      const windowsResult = await this.listWindows();
+      if (!windowsResult.success || !windowsResult.data) {
+        return { success: false, error: 'Failed to list windows' };
+      }
+
+      for (const window of windowsResult.data) {
+        const panesResult = await this.listPanes(window.index);
+        if (panesResult.success && panesResult.data) {
+          const pane = panesResult.data.find((p) => p.title === title);
+          if (pane) {
+            return {
+              success: true,
+              data: { window: window.name, pane: pane.index },
+            };
+          }
+        }
+      }
+
+      return { success: true, data: null };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
   }
 
   async createHnauPane(

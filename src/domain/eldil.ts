@@ -78,6 +78,10 @@ export class EldilManager {
     return `eldil-${this.idCounter}`;
   }
 
+  setIdCounter(value: number): void {
+    this.idCounter = Math.max(this.idCounter, value);
+  }
+
   private canSpawnInField(fieldName: string): boolean {
     const running = this.listByField(fieldName).filter(
       (r) => r.state.status === 'running'
@@ -177,8 +181,13 @@ export class EldilManager {
       return { success: false, error: 'Tmux manager not configured' };
     }
 
-    const windowName = `eldil-${options.fieldName}`;
+    const windowName = `field-${options.fieldName}`;
     const cmd = this.buildCommand(runtime.config, options.prompt);
+
+    const windowResult = await this.tmux.ensureFieldWindow(options.fieldName, options.fieldPath);
+    if (!windowResult.success) {
+      return { success: false, error: windowResult.error };
+    }
 
     const paneResult = await this.tmux.splitPane(windowName, {
       cwd: options.fieldPath,
@@ -189,13 +198,16 @@ export class EldilManager {
       return { success: false, error: paneResult.error };
     }
 
+    const paneIndex = paneResult.data ?? 0;
     runtime.process = {
       startedAt: new Date().toISOString(),
-      tmuxPane: `${windowName}.${paneResult.data}`,
+      tmuxPane: `${windowName}.${paneIndex}`,
     };
 
+    await this.tmux.setPaneTitle(windowName, paneIndex, runtime.id);
+
     await this.tmux.sendKeys(
-      { window: windowName, pane: paneResult.data },
+      { window: windowName, pane: paneIndex },
       cmd
     );
 
@@ -496,6 +508,54 @@ Your job is to continue from where the previous Eldil left off, preserving inten
 
     const result = await this.spawnImmediate(item.options);
     item.resolve(result);
+  }
+
+  reattach(options: {
+    id: string;
+    fieldName: string;
+    fieldPath: string;
+    hnauId?: string;
+    taskId?: string;
+    tool: EldilTool;
+    tmuxPane?: string;
+    initialPrompt: string;
+    startedAt: string;
+  }): EldilRuntime | null {
+    if (this.runtimes.has(options.id)) {
+      return this.runtimes.get(options.id) ?? null;
+    }
+
+    const config: EldilConfig = {
+      id: options.id,
+      tool: options.tool,
+      executeMode: true,
+      streamJson: true,
+    };
+
+    const state: EldilState = {
+      id: options.id,
+      fieldName: options.fieldName,
+      hnauId: options.hnauId,
+      currentTaskId: options.taskId,
+      status: 'running',
+      startedAt: options.startedAt,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const runtime: EldilRuntime = {
+      id: options.id,
+      config,
+      state,
+      outputs: [],
+      fieldPath: options.fieldPath,
+      initialPrompt: options.initialPrompt,
+      process: options.tmuxPane
+        ? { startedAt: options.startedAt, tmuxPane: options.tmuxPane }
+        : undefined,
+    };
+
+    this.runtimes.set(options.id, runtime);
+    return runtime;
   }
 
   get(id: string): EldilRuntime | undefined {

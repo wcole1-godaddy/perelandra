@@ -53,16 +53,26 @@ Perelandra coordinates AI-powered development across multiple microservices. Thi
 
 ### Naming (C.S. Lewis Space Trilogy)
 
-| Name | Role | Real-World Equivalent |
-|------|------|----------------------|
-| **Oyarsa** | Central orchestrator | Process manager / control plane |
-| **Eldil** (pl. Eldila) | AI worker agent | Amp or OpenCode session |
-| **Hnau** | Background service | Dev server, docker-compose, etc. |
-| **Field** | Isolated workspace | Git worktree |
-| **Sorn** | Code reviewer | OpenCode with review prompts |
-| **Maleldil** | Log system | Log aggregation / rotation |
-| **DeepHeaven** | Global config | `~/.perelandra/config.yaml` |
-| **Ransom** | Human operator | You! |
+The naming conventions in Perelandra are drawn from C.S. Lewis's *Space Trilogy* (also called the *Cosmic Trilogy* or *Ransom Trilogy*), consisting of *Out of the Silent Planet* (1938), *Perelandra* (1943), and *That Hideous Strength* (1945). The trilogy follows Dr. Elwin Ransom, a philologist who travels to Mars and Venus and discovers a cosmos alive with spiritual beings and meaning.
+
+Lewis envisioned a universe where planets are governed by great spiritual intelligences, served by lesser beings, and where humanity plays a unique role. This maps naturally to an orchestration system where a central intelligence coordinates workers, services run in the background, and human operators guide the whole.
+
+> *"A world, a life, a moment of time—these are things of a different nature from points and lines and plane surfaces."*
+> — C.S. Lewis, *Perelandra*
+
+| Name | Role | Real-World Equivalent | Trilogy Origin |
+|------|------|----------------------|----------------|
+| **Oyarsa** | Central orchestrator | Process manager / control plane | The ruling angelic intelligence (eldil) of a planet. Each world has its Oyarsa who governs and coordinates all within its sphere. |
+| **Eldil** (pl. Eldila) | AI worker agent | Amp or OpenCode session | Spiritual beings—swift, intelligent messengers and workers who carry out the will of the Oyarsa across the cosmos. |
+| **Hnau** | Background service | Dev server, docker-compose, etc. | The Old Solar word for "rational creature"—beings with soul and purpose. Hnau are the living inhabitants that make a world function. |
+| **Field** | Isolated workspace | Git worktree | The "Field of Arbol" refers to the solar system as a living space. Here, a Field is an isolated working environment. |
+| **Sorn** | Code reviewer | OpenCode with review prompts | Tall, intellectual creatures of Malacandra (Mars) devoted to knowledge, philosophy, and careful analysis. |
+| **Maleldil** | Log system | Log aggregation / rotation | The supreme being—"Maleldil the Young"—who knows all and sees all. The logs record everything that transpires. |
+| **DeepHeaven** | Global config | `~/.perelandra/config.yaml` | "Deep Heaven" is Lewis's term for outer space—the vast realm beyond any single world, where universal truths apply. |
+| **Ransom** | Human operator | You! | Dr. Elwin Ransom, the protagonist—a human who bridges worlds and guides events through understanding and will. |
+
+> *"The love of knowledge is a kind of madness."*
+> — C.S. Lewis, *Out of the Silent Planet*
 
 ---
 

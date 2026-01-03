@@ -2,6 +2,7 @@ import React from 'react';
 import { Dialog } from '../common/Dialog';
 import type { EldilRuntime, EldilStatus } from '../../../types/eldil';
 import { theme } from '../../theme';
+import { usePaneOutput } from '../../hooks';
 
 export interface EldilDetailDialogProps {
   eldil: EldilRuntime | null;
@@ -147,11 +148,19 @@ export function EldilDetailDialog({
   isOpen,
   onClose,
 }: EldilDetailDialogProps): React.ReactNode {
+  const { output: paneOutput, error: paneError } = usePaneOutput({
+    tmuxPane: eldil?.process?.tmuxPane,
+    enabled: isOpen && eldil?.state.status === 'running' && !!eldil?.process?.tmuxPane,
+    pollIntervalMs: 500,
+    lines: 50,
+  });
+
   if (!eldil) return null;
 
   const icon = getStatusIcon(eldil.state.status);
   const color = getStatusColor(eldil.state.status);
   const recentOutputs = eldil.outputs.slice(-20);
+  const hasTmuxOutput = !!eldil.process?.tmuxPane && eldil.state.status === 'running';
 
   return (
     <Dialog
@@ -244,40 +253,71 @@ export function EldilDetailDialog({
           </box>
         )}
 
-        {/* Output */}
-        <box style={{ marginTop: 2, flexDirection: 'column', flexGrow: 1 }}>
-          <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
-            <text fg={theme.textMuted}>Output</text>
-            <text fg={theme.textMuted}>({eldil.outputs.length} total)</text>
+        {/* Live Tmux Output */}
+        {hasTmuxOutput && (
+          <box style={{ marginTop: 2, flexDirection: 'column', flexGrow: 1 }}>
+            <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+              <text fg={theme.statusActive}>● Live</text>
+              <text fg={theme.textMuted}>Tmux Output</text>
+            </box>
+            <box
+              style={{
+                backgroundColor: theme.backgroundElement,
+                padding: 1,
+                flexDirection: 'column',
+                flexGrow: 1,
+                maxHeight: 20,
+              }}
+            >
+              {paneError ? (
+                <text fg={theme.statusError}>{paneError}</text>
+              ) : paneOutput ? (
+                paneOutput.split('\n').slice(-20).map((line, idx) => (
+                  <text key={idx} fg={theme.text}>{line}</text>
+                ))
+              ) : (
+                <text fg={theme.textMuted}>Waiting for output...</text>
+              )}
+            </box>
           </box>
-          <box
-            style={{
-              backgroundColor: theme.backgroundElement,
-              padding: 1,
-              flexDirection: 'column',
-              flexGrow: 1,
-            }}
-          >
-            {recentOutputs.length === 0 ? (
-              <text fg={theme.textMuted}>Waiting for output...</text>
-            ) : (
-              recentOutputs.map((output, idx) => {
-                const displayContent = getOutputDisplay(output);
-                return (
-                  <box key={idx} style={{ flexDirection: 'row', gap: 1 }}>
-                    <text fg={getOutputPrefixColor(output.type)}>
-                      {getOutputPrefix(output.type)}
-                    </text>
-                    <text fg={theme.text}>
-                      {displayContent.slice(0, 120)}
-                      {displayContent.length > 120 ? '...' : ''}
-                    </text>
-                  </box>
-                );
-              })
-            )}
+        )}
+
+        {/* Parsed Output (fallback for non-tmux or completed) */}
+        {!hasTmuxOutput && (
+          <box style={{ marginTop: 2, flexDirection: 'column', flexGrow: 1 }}>
+            <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+              <text fg={theme.textMuted}>Output</text>
+              <text fg={theme.textMuted}>({eldil.outputs.length} total)</text>
+            </box>
+            <box
+              style={{
+                backgroundColor: theme.backgroundElement,
+                padding: 1,
+                flexDirection: 'column',
+                flexGrow: 1,
+              }}
+            >
+              {recentOutputs.length === 0 ? (
+                <text fg={theme.textMuted}>No output recorded</text>
+              ) : (
+                recentOutputs.map((output, idx) => {
+                  const displayContent = getOutputDisplay(output);
+                  return (
+                    <box key={idx} style={{ flexDirection: 'row', gap: 1 }}>
+                      <text fg={getOutputPrefixColor(output.type)}>
+                        {getOutputPrefix(output.type)}
+                      </text>
+                      <text fg={theme.text}>
+                        {displayContent.slice(0, 120)}
+                        {displayContent.length > 120 ? '...' : ''}
+                      </text>
+                    </box>
+                  );
+                })
+              )}
+            </box>
           </box>
-        </box>
+        )}
       </scrollbox>
     </Dialog>
   );

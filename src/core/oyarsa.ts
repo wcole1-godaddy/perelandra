@@ -98,6 +98,8 @@ export class Oyarsa {
       this.globalConfig = deepHeaven.getConfig();
       this.applyGlobalConfig();
 
+      await this.ensureTmuxSession();
+
       await this.stateManager.load();
 
       await this.syncFieldsFromManager();
@@ -115,6 +117,21 @@ export class Oyarsa {
       const errorMsg = err instanceof Error ? err.message : String(err);
       logError('Oyarsa failed to start', err);
       return { success: false, error: errorMsg };
+    }
+  }
+
+  private async ensureTmuxSession(): Promise<void> {
+    const available = await this.tmuxManager.isTmuxAvailable();
+    if (!available) {
+      logWarn('tmux not available, eldila will not be durable');
+      return;
+    }
+
+    const sessionResult = await this.tmuxManager.createSession({ detached: true });
+    if (sessionResult.success) {
+      logInfo('Tmux session ready', { session: this.tmuxManager.getSessionName() });
+    } else {
+      logWarn('Failed to create tmux session', { error: sessionResult.error });
     }
   }
 
@@ -205,14 +222,57 @@ export class Oyarsa {
 
   private async recoverOrphanedEldila(): Promise<void> {
     const eldila = this.stateManager.listEldila();
+    let maxIdNumber = 0;
+
     for (const eldil of eldila) {
+      const idMatch = eldil.id.match(/^eldil-(\d+)$/);
+      if (idMatch) {
+        maxIdNumber = Math.max(maxIdNumber, parseInt(idMatch[1], 10));
+      }
+
       if (eldil.status === 'running') {
+        if (eldil.tmuxPane) {
+          const paneExists = await this.tmuxManager.paneExists(eldil.tmuxPane);
+          if (paneExists) {
+            logInfo('Recovered running Eldil from tmux', {
+              eldilId: eldil.id,
+              tmuxPane: eldil.tmuxPane,
+            });
+            await this.reattachEldil(eldil);
+            continue;
+          }
+        }
+
         logWarn('Found orphaned running Eldil, marking as error', { eldilId: eldil.id });
         this.stateManager.updateEldilStatus(eldil.id, 'error', 'Orphaned after restart');
 
         if (eldil.currentTaskId) {
           await this.beadsManager.updateTask(eldil.currentTaskId, { status: 'todo' });
         }
+      }
+    }
+
+    this.eldilManager.setIdCounter(maxIdNumber);
+  }
+
+  private async reattachEldil(eldilState: EldilState): Promise<void> {
+    const runtime = this.eldilManager.reattach({
+      id: eldilState.id,
+      fieldName: eldilState.fieldName,
+      fieldPath: eldilState.fieldPath ?? this.repoRoot,
+      hnauId: eldilState.hnauId,
+      taskId: eldilState.currentTaskId,
+      tool: eldilState.tool ?? 'amp',
+      tmuxPane: eldilState.tmuxPane,
+      initialPrompt: eldilState.initialPrompt ?? '',
+      startedAt: eldilState.startedAt,
+    });
+
+    if (runtime) {
+      const field = this.stateManager.getField(eldilState.fieldName);
+      if (field && !field.activeEldila.includes(eldilState.id)) {
+        field.activeEldila = [...field.activeEldila, eldilState.id];
+        this.stateManager.setField(eldilState.fieldName, field);
       }
     }
   }
@@ -411,14 +471,19 @@ export class Oyarsa {
     const eldilState: EldilState = {
       id: result.data.id,
       fieldName,
+      fieldPath: field.path,
       hnauId,
       currentTaskId: taskId,
       status: 'running',
       startedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      tmuxPane: result.data.process?.tmuxPane,
+      initialPrompt: prompt,
+      tool: result.data.config.tool,
     };
 
     this.stateManager.setEldil(result.data.id, eldilState);
+    await this.stateManager.persist();
 
     field.activeEldila = [...field.activeEldila, result.data.id];
     this.stateManager.setField(fieldName, field);
