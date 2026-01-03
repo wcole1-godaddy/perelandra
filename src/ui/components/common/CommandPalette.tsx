@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useKeyboard } from '@opentui/react';
-import { theme, SplitBorder, type ThemeFlavorName, flavorNames, flavors } from '../../theme';
+import { Dialog } from './Dialog';
+import { theme, type ThemeFlavorName, flavorNames, flavors } from '../../theme';
 
 export interface Command {
   id: string;
@@ -50,13 +51,17 @@ export function CommandPalette({
     return groups;
   }, [filteredCommands]);
 
+  const handleClose = () => {
+    setQuery('');
+    setSelectedIndex(0);
+    onClose();
+  };
+
   useKeyboard((event) => {
     if (!isOpen) return;
 
     if (event.name === 'escape') {
-      setQuery('');
-      setSelectedIndex(0);
-      onClose();
+      handleClose();
       return;
     }
 
@@ -65,9 +70,7 @@ export function CommandPalette({
       if (cmd) {
         onAction(`Executing: ${cmd.label}`);
         cmd.action();
-        setQuery('');
-        setSelectedIndex(0);
-        onClose();
+        handleClose();
       }
       return;
     }
@@ -94,27 +97,19 @@ export function CommandPalette({
     }
   });
 
-  if (!isOpen) return null;
-
   let flatIndex = 0;
 
   return (
-    <box
-      style={{
-        position: 'absolute',
-        top: 4,
-        left: '20%',
-        width: 60,
-        maxHeight: '60%',
-        backgroundColor: theme.backgroundPanel,
-        paddingLeft: 2,
-        paddingRight: 2,
-        paddingTop: 1,
-        paddingBottom: 1,
-        flexDirection: 'column',
-        ...SplitBorder,
-        borderColor: theme.primary,
-      }}
+    <Dialog
+      isOpen={isOpen}
+      onClose={handleClose}
+      size="medium"
+      showFooter={true}
+      footerHints={[
+        { key: '↑/↓', label: 'navigate' },
+        { key: 'enter', label: 'execute' },
+        { key: 'esc', label: 'close' },
+      ]}
     >
       {/* Search input */}
       <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
@@ -160,17 +155,7 @@ export function CommandPalette({
           ))}
         </scrollbox>
       )}
-
-      {/* Footer */}
-      <box style={{ marginTop: 1, flexDirection: 'row', gap: 1 }}>
-        <text fg={theme.textMuted}>↑/↓</text>
-        <text fg={theme.text}>navigate</text>
-        <text fg={theme.textMuted}>enter</text>
-        <text fg={theme.text}>execute</text>
-        <text fg={theme.textMuted}>esc</text>
-        <text fg={theme.text}>close</text>
-      </box>
-    </box>
+    </Dialog>
   );
 }
 
