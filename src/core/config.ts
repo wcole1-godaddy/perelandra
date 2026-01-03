@@ -43,6 +43,11 @@ const BeadsConfigSchema = z.object({
   root: z.string().optional(),
 });
 
+const HealthCheckDefaultsSchema = z.object({
+  intervalSeconds: z.number().optional(),
+  timeoutMs: z.number().optional(),
+});
+
 const RepoConfigSchema = z.object({
   id: z.string(),
   url: z.string(),
@@ -61,6 +66,7 @@ export const PerelandraConfigSchema = z.object({
   dockerComposeFile: z.string().optional(),
   logs: LogsConfigSchema.optional(),
   beads: BeadsConfigSchema.optional(),
+  healthCheckDefaults: HealthCheckDefaultsSchema.optional(),
 });
 
 export interface ConfigLoadResult {

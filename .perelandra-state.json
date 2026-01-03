@@ -23,27 +23,6 @@
       "baseBranch": "main",
       "hnauStatuses": {},
       "activeEldila": []
-    },
-    "perelandra-mcq": {
-      "name": "perelandra-mcq",
-      "path": "/Users/wcole1/GoDaddy/perelandra-mcq",
-      "branch": "perelandra-mcq",
-      "hnauStatuses": {},
-      "activeEldila": []
-    },
-    "perelandra-qx5": {
-      "name": "perelandra-qx5",
-      "path": "/Users/wcole1/GoDaddy/perelandra-qx5",
-      "branch": "perelandra-qx5",
-      "hnauStatuses": {},
-      "activeEldila": []
-    },
-    "perelandra-35l": {
-      "name": "perelandra-35l",
-      "path": "/Users/wcole1/GoDaddy/perelandra-35l",
-      "branch": "perelandra-35l",
-      "hnauStatuses": {},
-      "activeEldila": []
     }
   },
   "eldila": {}

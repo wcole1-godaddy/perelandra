@@ -49,6 +49,11 @@ export interface BeadsConfig {
   root?: string;
 }
 
+export interface HealthCheckDefaults {
+  intervalSeconds?: number;
+  timeoutMs?: number;
+}
+
 export interface RepoConfig {
   id: string;
   url: string;
@@ -67,4 +72,5 @@ export interface PerelandraConfig {
   dockerComposeFile?: string;
   logs?: LogsConfig;
   beads?: BeadsConfig;
+  healthCheckDefaults?: HealthCheckDefaults;
 }

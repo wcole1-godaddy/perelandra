@@ -75,6 +75,73 @@ function formatTimestamp(ts: string): string {
   }
 }
 
+type OutputType = 'text' | 'tool_use' | 'tool_result' | 'error' | 'complete' | 'json';
+
+function getOutputPrefix(type: OutputType): string {
+  switch (type) {
+    case 'error':
+      return '!';
+    case 'json':
+      return '◆';
+    case 'tool_use':
+      return '→';
+    case 'tool_result':
+      return '←';
+    case 'complete':
+      return '✓';
+    default:
+      return '>';
+  }
+}
+
+function getOutputPrefixColor(type: OutputType): string {
+  switch (type) {
+    case 'error':
+      return theme.statusError;
+    case 'json':
+      return theme.accent;
+    case 'tool_use':
+      return theme.primary;
+    case 'tool_result':
+      return theme.statusSuccess;
+    case 'complete':
+      return theme.statusSuccess;
+    default:
+      return theme.textMuted;
+  }
+}
+
+function getOutputDisplay(output: { type: OutputType; content?: string; json?: unknown; toolName?: string }): string {
+  if (output.type === 'json' && output.json) {
+    const msg = output.json as Record<string, unknown>;
+    if (msg.type === 'assistant' && msg.message) {
+      const message = msg.message as Record<string, unknown>;
+      const content = message.content;
+      if (Array.isArray(content)) {
+        const textPart = content.find((c: Record<string, unknown>) => c.type === 'text');
+        if (textPart?.text) {
+          return String(textPart.text).replace(/\n/g, ' ');
+        }
+      }
+      return `[assistant message]`;
+    }
+    if (msg.type === 'tool_use') {
+      return `[tool: ${msg.name ?? 'unknown'}]`;
+    }
+    if (msg.type === 'tool_result') {
+      return `[tool result]`;
+    }
+    if (msg.type === 'result') {
+      return `[complete]`;
+    }
+    return JSON.stringify(msg).slice(0, 100);
+  }
+  if (output.type === 'tool_use' && output.toolName) {
+    return `[${output.toolName}]`;
+  }
+  return output.content ?? '';
+}
+
 export function EldilDetailDialog({
   eldil,
   isOpen,
@@ -178,33 +245,39 @@ export function EldilDetailDialog({
         )}
 
         {/* Output */}
-        {recentOutputs.length > 0 && (
-          <box style={{ marginTop: 2, flexDirection: 'column' }}>
-            <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
-              <text fg={theme.textMuted}>Recent Output</text>
-              <text fg={theme.textMuted}>({eldil.outputs.length} total)</text>
-            </box>
-            <box
-              style={{
-                backgroundColor: theme.backgroundElement,
-                padding: 1,
-                flexDirection: 'column',
-              }}
-            >
-              {recentOutputs.map((output, idx) => (
-                <box key={idx} style={{ flexDirection: 'row', gap: 1 }}>
-                  <text fg={output.type === 'error' ? theme.statusError : theme.textMuted}>
-                    {output.type === 'error' ? '!' : '>'}
-                  </text>
-                  <text fg={theme.text}>
-                    {(output.content ?? '').slice(0, 100)}
-                    {(output.content?.length ?? 0) > 100 ? '...' : ''}
-                  </text>
-                </box>
-              ))}
-            </box>
+        <box style={{ marginTop: 2, flexDirection: 'column', flexGrow: 1 }}>
+          <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+            <text fg={theme.textMuted}>Output</text>
+            <text fg={theme.textMuted}>({eldil.outputs.length} total)</text>
           </box>
-        )}
+          <box
+            style={{
+              backgroundColor: theme.backgroundElement,
+              padding: 1,
+              flexDirection: 'column',
+              flexGrow: 1,
+            }}
+          >
+            {recentOutputs.length === 0 ? (
+              <text fg={theme.textMuted}>Waiting for output...</text>
+            ) : (
+              recentOutputs.map((output, idx) => {
+                const displayContent = getOutputDisplay(output);
+                return (
+                  <box key={idx} style={{ flexDirection: 'row', gap: 1 }}>
+                    <text fg={getOutputPrefixColor(output.type)}>
+                      {getOutputPrefix(output.type)}
+                    </text>
+                    <text fg={theme.text}>
+                      {displayContent.slice(0, 120)}
+                      {displayContent.length > 120 ? '...' : ''}
+                    </text>
+                  </box>
+                );
+              })
+            )}
+          </box>
+        </box>
       </scrollbox>
     </Dialog>
   );

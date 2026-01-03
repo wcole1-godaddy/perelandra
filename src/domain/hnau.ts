@@ -276,8 +276,12 @@ export class HnauManager {
     const runtime = this.runtimes.get(id);
     if (!runtime?.config.healthCheck) return;
 
-    const intervalMs =
-      (runtime.config.healthCheck.intervalSeconds ?? 30) * 1000;
+    const defaults = this.config.healthCheckDefaults;
+    const intervalSeconds =
+      runtime.config.healthCheck.intervalSeconds ??
+      defaults?.intervalSeconds ??
+      30;
+    const intervalMs = intervalSeconds * 1000;
 
     const timer = setInterval(() => {
       this.checkHealth(id);
