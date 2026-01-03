@@ -1,4 +1,5 @@
 import { $ } from 'bun';
+import { join } from 'node:path';
 import type {
   SornConfig,
   SornIssue,
@@ -8,8 +9,14 @@ import type {
   ReviewChecklistItem,
   ReviewCategory,
 } from '../types/sorn';
+import type { HnauConfig } from '../types/config';
 import { DEFAULT_CHECKLIST, getEnabledChecklist } from '../types/sorn';
 import { logInfo, logWarn, logError } from '../logging/pino';
+
+export interface HnauDiffEntry {
+  hnauId: string;
+  diff: string;
+}
 
 const DEFAULT_MODEL = 'gpt-4.1';
 const MAX_HISTORY_ENTRIES = 100;
@@ -203,6 +210,79 @@ export class SornReviewer {
         checklistUsed: [],
       };
     }
+  }
+
+  async reviewMultiHnau(
+    taskId: string,
+    hnauConfigs: HnauConfig[],
+    fieldPath: string,
+    options: SornReviewOptions = {}
+  ): Promise<SornReviewResult> {
+    try {
+      const aggregatedDiff = await this.aggregateDiffs(hnauConfigs, fieldPath);
+
+      if (!aggregatedDiff.trim()) {
+        return {
+          success: true,
+          issues: [],
+          summary: 'No changes to review across hnau repos',
+          reviewedAt: new Date().toISOString(),
+          checklistUsed: [],
+        };
+      }
+
+      logInfo('Sorn multi-hnau review starting', {
+        taskId,
+        hnauCount: hnauConfigs.length,
+        hnauIds: hnauConfigs.map((h) => h.id),
+      });
+
+      return this.reviewDiff(aggregatedDiff, { ...options, taskId });
+    } catch (err) {
+      logError('Sorn reviewMultiHnau failed', err);
+      return {
+        success: false,
+        issues: [],
+        error: err instanceof Error ? err.message : String(err),
+        reviewedAt: new Date().toISOString(),
+        checklistUsed: [],
+      };
+    }
+  }
+
+  async aggregateDiffs(hnauConfigs: HnauConfig[], fieldPath: string): Promise<string> {
+    const diffEntries: HnauDiffEntry[] = [];
+
+    for (const hnauConfig of hnauConfigs) {
+      const hnauRootPath = join(fieldPath, hnauConfig.root);
+
+      try {
+        const staged = await $`git diff --cached`.cwd(hnauRootPath).text();
+        const unstaged = await $`git diff`.cwd(hnauRootPath).text();
+        const diff = `${staged}\n${unstaged}`.trim();
+
+        if (diff) {
+          diffEntries.push({
+            hnauId: hnauConfig.id,
+            diff,
+          });
+        }
+      } catch (err) {
+        logWarn('Failed to get diff for hnau', {
+          hnauId: hnauConfig.id,
+          path: hnauRootPath,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    if (diffEntries.length === 0) {
+      return '';
+    }
+
+    return diffEntries
+      .map((entry) => `# Hnau: ${entry.hnauId}\n${entry.diff}`)
+      .join('\n\n');
   }
 
   hasCriticalIssues(result: SornReviewResult): boolean {

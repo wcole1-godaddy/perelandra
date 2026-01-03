@@ -264,7 +264,8 @@ export class Oyarsa {
   }
 
   private async completeTaskWithReview(taskId: string, fieldPath: string): Promise<void> {
-    const task = await this.beadsManager.getTask(taskId);
+    const taskResult = await this.beadsManager.getTask(taskId);
+    const task = taskResult?.data;
     const fieldName = task?.fieldName ?? '';
 
     if (!this.sornReviewOnComplete) {
@@ -281,7 +282,7 @@ export class Oyarsa {
 
     logInfo('Running Sorn review before task completion', { taskId });
 
-    const reviewResult = await this.sornReviewer.reviewTask(taskId, fieldPath);
+    const reviewResult = await this.runSornReviewForTask(taskId, task?.hnauId, fieldPath);
 
     if (!reviewResult.success) {
       logWarn('Sorn review failed, completing task anyway', {
@@ -327,6 +328,29 @@ export class Oyarsa {
       reason: 'completed',
     });
     logInfo('Task completed after Sorn review', { taskId, issueCount: reviewResult.issues.length });
+  }
+
+  private async runSornReviewForTask(
+    taskId: string,
+    hnauId: string | undefined,
+    fieldPath: string
+  ): Promise<SornReviewResult> {
+    if (hnauId) {
+      const hnauConfig = this.config.hnau.find((h) => h.id === hnauId);
+      if (hnauConfig) {
+        return this.sornReviewer.reviewMultiHnau(taskId, [hnauConfig], fieldPath);
+      }
+    }
+
+    if (this.config.hnau.length > 1) {
+      logInfo('Running multi-hnau Sorn review', {
+        taskId,
+        hnauCount: this.config.hnau.length,
+      });
+      return this.sornReviewer.reviewMultiHnau(taskId, this.config.hnau, fieldPath);
+    }
+
+    return this.sornReviewer.reviewTask(taskId, fieldPath);
   }
 
   async runSornReview(fieldName?: string): Promise<SornReviewResult> {
