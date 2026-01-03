@@ -10,6 +10,10 @@ logs:
 beads:
   root: ".beads"
 
+healthCheckDefaults:
+  intervalSeconds: 30
+  timeoutMs: 5000
+
 hnau:
   - id: "app-registry-api"
     description: "3P app registration and management API"

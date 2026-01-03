@@ -47,6 +47,10 @@ logs:
 beads:
   root: ".beads"
 
+healthCheckDefaults:
+  intervalSeconds: 30
+  timeoutMs: 5000
+
 hnau:
   - id: "my-service"
     description: "My service description"
@@ -55,7 +59,6 @@ hnau:
     port: 3000
     healthCheck:
       url: "http://localhost:3000/health"
-      intervalSeconds: 30
 `;
 
     await Bun.write(configPath, template);

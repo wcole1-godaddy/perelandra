@@ -227,9 +227,10 @@ export class HnauManager {
     }
 
     const startTime = Date.now();
+    const defaults = this.config.healthCheckDefaults;
 
     try {
-      const timeoutMs = healthCheck.timeoutMs ?? 5000;
+      const timeoutMs = healthCheck.timeoutMs ?? defaults?.timeoutMs ?? 5000;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
