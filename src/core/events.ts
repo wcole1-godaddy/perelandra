@@ -3,6 +3,7 @@ import type { BeadsTaskStatus } from '../types/beads';
 import type { EldilStatus } from '../types/eldil';
 import type { HnauStatus } from '../types/hnau';
 import type { WitnessReport } from '../types/witness';
+import type { VerificationStatusChangedEvent } from '../types/verifier';
 
 export type TaskCreatedEvent = {
   taskId: string;
@@ -73,6 +74,7 @@ export type PerelandraEventMap = {
   'ui:refresh': UIRefreshEvent;
   'witness:report': WitnessReportEvent;
   'witness:alert': WitnessAlertEvent;
+  'verification:statusChanged': VerificationStatusChangedEvent;
 };
 
 class PerelandraEventBus extends EventEmitter {

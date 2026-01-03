@@ -4,3 +4,4 @@ export * from './beads';
 export * from './sorn';
 export * from './deepheaven';
 export * from './witness';
+export * from './verifier';
