@@ -9,6 +9,7 @@ import { createSornCommand } from './commands/sorn';
 import { getRepoRoot } from '../domain/git';
 import { startUI } from '../ui';
 import { formatError, isPerelandraError } from '../util/errors';
+import { TmuxManager } from '../domain/tmux';
 
 const program = new Command();
 
@@ -136,7 +137,35 @@ tmuxCmd
   .command('attach')
   .description('Attach to Perelandra tmux session')
   .action(async () => {
-    console.log('TODO: Attach to tmux session');
+    const tmux = new TmuxManager();
+
+    if (!(await tmux.isTmuxAvailable())) {
+      console.error('Error: tmux is not installed or not in PATH');
+      console.log('Install tmux: brew install tmux (macOS) or apt install tmux (Linux)');
+      process.exit(1);
+    }
+
+    if (await tmux.isInsideTmux()) {
+      console.error('Error: Already inside a tmux session');
+      console.log('Use `tmux switch-client -t perelandra` to switch sessions');
+      process.exit(1);
+    }
+
+    if (!(await tmux.sessionExists())) {
+      console.log('No perelandra session exists. Creating one...');
+      const createResult = await tmux.createSession({ detached: false });
+      if (!createResult.success) {
+        console.error('Error:', createResult.error);
+        process.exit(1);
+      }
+      return;
+    }
+
+    const attachResult = await tmux.attach();
+    if (!attachResult.success) {
+      console.error('Error:', attachResult.error);
+      process.exit(1);
+    }
   });
 
 const tmuxLayoutCmd = tmuxCmd.command('layout').description('Tmux layout management');

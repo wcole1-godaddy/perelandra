@@ -136,6 +136,37 @@ export function createTaskCommand(): Command {
     });
 
   taskCmd
+    .command('history <id>')
+    .description('Show task history/audit trail')
+    .action(async (id: string) => {
+      const { config } = await loadConfig();
+      const repoRootResult = await getRepoRoot();
+      if (!repoRootResult.success || !repoRootResult.data) {
+        console.error('Error:', repoRootResult.error);
+        process.exit(1);
+      }
+
+      const beadsRoot = config.beads?.root ?? `${repoRootResult.data}/.beads`;
+      const beads = new BeadsManager(beadsRoot, repoRootResult.data);
+
+      const result = await beads.getTaskHistory(id);
+      if (!result.success || !result.data) {
+        console.error('Error:', result.error);
+        process.exit(1);
+      }
+
+      if (result.data.length === 0) {
+        console.log('No history found for this task');
+        return;
+      }
+
+      console.log(`History for ${id}:`);
+      for (const entry of result.data) {
+        console.log(`  ${entry.timestamp} - ${entry.action}${entry.user ? ` (${entry.user})` : ''}`);
+      }
+    });
+
+  taskCmd
     .command('sync')
     .description('Sync tasks with Beads')
     .action(async () => {

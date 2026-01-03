@@ -1,5 +1,5 @@
 import { $ } from 'bun';
-import type { BeadsTaskMetadata, BeadsTaskStatus, BeadsTaskCreator } from '../types/beads';
+import type { BeadsTaskMetadata, BeadsTaskStatus, BeadsTaskCreator, TaskHistoryEntry } from '../types/beads';
 
 export interface BeadsResult<T = void> {
   success: boolean;
@@ -187,6 +187,35 @@ export class BeadsManager {
         error: err instanceof Error ? err.message : String(err),
       };
     }
+  }
+
+  async getTaskHistory(id: string): Promise<BeadsResult<TaskHistoryEntry[]>> {
+    try {
+      const output = await $`bd log ${id} --json`.cwd(this.cwd).json();
+      const history = this.parseHistoryOutput(output);
+      return { success: true, data: history };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  private parseHistoryOutput(output: unknown): TaskHistoryEntry[] {
+    if (!Array.isArray(output)) {
+      return [];
+    }
+
+    return output.map((item) => {
+      const obj = item as Record<string, unknown>;
+      return {
+        timestamp: String(obj.timestamp ?? ''),
+        action: String(obj.action ?? ''),
+        user: obj.user ? String(obj.user) : undefined,
+        details: obj.details as Record<string, unknown> | undefined,
+      };
+    });
   }
 
   getFieldBeadsRoot(fieldName: string): string {

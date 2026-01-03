@@ -13,3 +13,10 @@ export interface BeadsTaskMetadata {
   relatedCommits?: string[];
   labels?: string[];
 }
+
+export interface TaskHistoryEntry {
+  timestamp: string;
+  action: string;
+  user?: string;
+  details?: Record<string, unknown>;
+}
