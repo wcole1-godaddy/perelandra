@@ -1,5 +1,6 @@
 import type { PerelandraConfig } from '../types/config';
 import type { FieldState } from '../types/runtime';
+import { FieldError } from '../util/errors';
 import * as git from './git';
 
 export interface FieldInfo {
@@ -107,6 +108,18 @@ export class FieldManager {
     }
 
     return { success: true, data: field };
+  }
+
+  require(name: string): Promise<FieldInfo> {
+    return this.get(name).then((result) => {
+      if (!result.success || !result.data) {
+        throw new FieldError(`Field not found: ${name}`, {
+          code: 'FIELD_NOT_FOUND',
+          fieldName: name,
+        });
+      }
+      return result.data;
+    });
   }
 
   async create(name: string, options: FieldCreateOptions = {}): Promise<FieldResult<FieldInfo>> {

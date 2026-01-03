@@ -4,6 +4,11 @@ import { loadConfig, validateConfig, formatConfigError } from '../core/config';
 import { createFieldCommand } from './commands/field';
 import { createHnauCommand } from './commands/hnau';
 import { createTaskCommand } from './commands/task';
+import { createEldilCommand } from './commands/eldil';
+import { createSornCommand } from './commands/sorn';
+import { getRepoRoot } from '../domain/git';
+import { startUI } from '../ui';
+import { formatError, isPerelandraError } from '../util/errors';
 
 const program = new Command();
 
@@ -15,8 +20,42 @@ program
 program
   .command('init')
   .description('Generate a .perelandra.yaml configuration file')
-  .action(async () => {
-    console.log('TODO: Initialize configuration');
+  .option('--force', 'Overwrite existing config')
+  .action(async (options: { force?: boolean }) => {
+    const configPath = '.perelandra.yaml';
+    const file = Bun.file(configPath);
+
+    if (await file.exists() && !options.force) {
+      console.error(`Config already exists: ${configPath}`);
+      console.log('Use --force to overwrite');
+      process.exit(1);
+    }
+
+    const template = `version: "1"
+repoRoot: "."
+
+logs:
+  root: "logs"
+  maxSizeMb: 50
+  maxFiles: 5
+
+beads:
+  root: ".beads"
+
+hnau:
+  - id: "my-service"
+    description: "My service description"
+    root: "."
+    devCommand: "npm run dev"
+    port: 3000
+    healthCheck:
+      url: "http://localhost:3000/health"
+      intervalSeconds: 30
+`;
+
+    await Bun.write(configPath, template);
+    console.log(`✓ Created ${configPath}`);
+    console.log('Edit this file to configure your services (hnau)');
   });
 
 const configCmd = program.command('config').description('Configuration management');
@@ -39,13 +78,22 @@ program
   .description('Start Oyarsa orchestrator and TUI')
   .action(async () => {
     try {
-      const { config, path } = await loadConfig();
-      console.log(`Loaded config from: ${path}`);
-      console.log(`Version: ${config.version}`);
-      console.log(`Hnau count: ${config.hnau.length}`);
-      console.log('TODO: Start Oyarsa and TUI');
+      const { config } = await loadConfig();
+      const repoRootResult = await getRepoRoot();
+
+      if (!repoRootResult.success || !repoRootResult.data) {
+        console.error('Error:', repoRootResult.error ?? 'Could not determine repo root');
+        process.exit(1);
+      }
+
+      await startUI({
+        config,
+        repoRoot: repoRootResult.data,
+      });
     } catch (err) {
-      if (typeof err === 'object' && err !== null && 'issues' in err) {
+      if (isPerelandraError(err)) {
+        console.error(formatError(err));
+      } else if (typeof err === 'object' && err !== null && 'issues' in err) {
         console.error(formatConfigError(err as Parameters<typeof formatConfigError>[0]));
       } else {
         console.error(err instanceof Error ? err.message : err);
@@ -64,66 +112,8 @@ program
 program.addCommand(createFieldCommand());
 program.addCommand(createHnauCommand());
 program.addCommand(createTaskCommand());
-
-const eldilCmd = program
-  .command('eldil')
-  .description('Manage Eldila (AI workers)');
-
-eldilCmd
-  .command('list')
-  .description('List all Eldila')
-  .action(async () => {
-    console.log('TODO: List eldila');
-  });
-
-eldilCmd
-  .command('start')
-  .description('Start an Eldil')
-  .option('--field <name>', 'Field context')
-  .option('--hnau <id>', 'Associated Hnau')
-  .action(async (_options: { field?: string; hnau?: string }) => {
-    console.log('TODO: Start eldil');
-  });
-
-eldilCmd
-  .command('stop <eldilId>')
-  .description('Stop an Eldil')
-  .action(async (eldilId: string) => {
-    console.log(`TODO: Stop eldil ${eldilId}`);
-  });
-
-eldilCmd
-  .command('assign <eldilId> <taskId>')
-  .description('Assign a task to an Eldil')
-  .action(async (eldilId: string, taskId: string) => {
-    console.log(`TODO: Assign task ${taskId} to eldil ${eldilId}`);
-  });
-
-const sornCmd = program
-  .command('sorn')
-  .description('Manage Sorn (reviewer agent)');
-
-sornCmd
-  .command('review')
-  .description('Review current changes')
-  .option('--field <name>', 'Field context')
-  .action(async (_options: { field?: string }) => {
-    console.log('TODO: Run Sorn review');
-  });
-
-sornCmd
-  .command('config')
-  .description('Show/edit Sorn model config')
-  .action(async () => {
-    console.log('TODO: Show Sorn config');
-  });
-
-sornCmd
-  .command('history')
-  .description('Show past reviews')
-  .action(async () => {
-    console.log('TODO: Show Sorn history');
-  });
+program.addCommand(createEldilCommand());
+program.addCommand(createSornCommand());
 
 const logsCmd = program
   .command('logs')

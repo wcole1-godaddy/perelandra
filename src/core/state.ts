@@ -1,4 +1,5 @@
 import type { OyarsaState, FieldState, EldilState } from '../types/runtime';
+import { logWarn, logError } from '../logging/pino';
 
 const STATE_FILE_NAME = '.perelandra-state.json';
 
@@ -46,12 +47,48 @@ export class StateManager {
     try {
       const content = await file.text();
       const loaded = JSON.parse(content) as OyarsaState;
+      
+      if (!this.validateState(loaded)) {
+        logWarn('State file is corrupted, resetting to empty state', {
+          path: this.stateFilePath,
+        });
+        await this.backupAndReset();
+        return this.state;
+      }
+      
       this.state = loaded;
       this.dirty = false;
       return this.state;
-    } catch {
+    } catch (err) {
+      logError('Failed to load state file', err);
+      await this.backupAndReset();
       return this.state;
     }
+  }
+
+  private validateState(state: unknown): state is OyarsaState {
+    if (typeof state !== 'object' || state === null) return false;
+    const s = state as Record<string, unknown>;
+    if (typeof s.activeField !== 'string') return false;
+    if (typeof s.fields !== 'object' || s.fields === null) return false;
+    if (typeof s.eldila !== 'object' || s.eldila === null) return false;
+    return true;
+  }
+
+  private async backupAndReset(): Promise<void> {
+    try {
+      const backupPath = `${this.stateFilePath}.backup.${Date.now()}`;
+      const file = Bun.file(this.stateFilePath);
+      if (await file.exists()) {
+        const content = await file.text();
+        await Bun.write(backupPath, content);
+        logWarn('Backed up corrupted state file', { backupPath });
+      }
+    } catch {
+      // Ignore backup errors
+    }
+    this.state = this.createEmptyState();
+    this.dirty = true;
   }
 
   async persist(): Promise<void> {

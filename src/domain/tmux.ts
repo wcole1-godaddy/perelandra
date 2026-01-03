@@ -1,4 +1,5 @@
 import { $ } from 'bun';
+import { TmuxError } from '../util/errors';
 
 export interface TmuxSession {
   name: string;
@@ -45,6 +46,15 @@ export class TmuxManager {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  async requireTmux(): Promise<void> {
+    if (!(await this.isTmuxAvailable())) {
+      throw new TmuxError('tmux is not installed or not in PATH', {
+        code: 'TMUX_NOT_AVAILABLE',
+        suggestion: 'Install tmux: brew install tmux (macOS) or apt install tmux (Linux)',
+      });
     }
   }
 

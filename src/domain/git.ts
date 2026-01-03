@@ -1,4 +1,5 @@
 import { $ } from 'bun';
+import { GitError } from '../util/errors';
 
 export interface WorktreeInfo {
   path: string;
@@ -12,6 +13,28 @@ export interface GitResult<T> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+export class GitOperationError extends GitError {
+  constructor(operation: string, cause?: Error, path?: string) {
+    super(`Git ${operation} failed`, {
+      code: 'GIT_ERROR',
+      path,
+      cause,
+      suggestion: 'Ensure you are in a git repository and have the necessary permissions',
+    });
+  }
+}
+
+export class WorktreeError extends GitError {
+  constructor(message: string, path?: string, cause?: Error) {
+    super(message, {
+      code: 'GIT_WORKTREE_ERROR',
+      path,
+      cause,
+      suggestion: 'Run `git worktree list` to see existing worktrees',
+    });
+  }
 }
 
 export async function getRepoRoot(cwd: string = process.cwd()): Promise<GitResult<string>> {

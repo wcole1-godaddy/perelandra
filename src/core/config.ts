@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { parse as parseYaml } from 'yaml';
 import type { PerelandraConfig } from '../types/config';
+import { ConfigError as ConfigErr } from '../util/errors';
 
 const HealthCheckSchema = z.object({
   url: z.string(),
@@ -92,17 +93,44 @@ export async function loadConfig(configPath?: string): Promise<ConfigLoadResult>
   const path = configPath ?? await findConfigPath();
   
   if (!path) {
-    throw new Error(`Config file not found: ${CONFIG_FILE_NAME}`);
+    throw new ConfigErr(`Config file not found: ${CONFIG_FILE_NAME}`, {
+      code: 'CONFIG_NOT_FOUND',
+      suggestion: 'Run `perelandra init` to create a new configuration file',
+    });
   }
   
   const file = Bun.file(path);
   
   if (!(await file.exists())) {
-    throw new Error(`Config file does not exist: ${path}`);
+    throw new ConfigErr(`Config file does not exist: ${path}`, {
+      code: 'CONFIG_NOT_FOUND',
+      path,
+      suggestion: 'Run `perelandra init` to create a new configuration file',
+    });
   }
   
-  const content = await file.text();
-  const parsed = parseYaml(content);
+  let content: string;
+  try {
+    content = await file.text();
+  } catch (err) {
+    throw new ConfigErr('Failed to read config file', {
+      code: 'CONFIG_PARSE_ERROR',
+      path,
+      cause: err instanceof Error ? err : undefined,
+    });
+  }
+  
+  let parsed: unknown;
+  try {
+    parsed = parseYaml(content);
+  } catch (err) {
+    throw new ConfigErr('Invalid YAML syntax in config file', {
+      code: 'CONFIG_PARSE_ERROR',
+      path,
+      cause: err instanceof Error ? err : undefined,
+      suggestion: 'Check the YAML syntax in your .perelandra.yaml file',
+    });
+  }
   
   const result = PerelandraConfigSchema.safeParse(parsed);
   
