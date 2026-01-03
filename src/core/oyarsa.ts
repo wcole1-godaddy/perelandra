@@ -9,11 +9,13 @@ import { BeadsManager } from '../domain/beads';
 import { SornReviewer } from '../domain/sorn';
 import { TmuxManager } from '../domain/tmux';
 import { logInfo, logWarn, logError } from '../logging/pino';
+import type { SornReviewResult } from '../types/sorn';
 
 export interface OyarsaOptions {
   config: PerelandraConfig;
   repoRoot: string;
   autoPersist?: boolean;
+  sornReviewOnComplete?: boolean;
 }
 
 export interface OyarsaStartResult {
@@ -34,10 +36,12 @@ export class Oyarsa {
   private tmuxManager: TmuxManager;
 
   private started = false;
+  private sornReviewOnComplete: boolean;
 
   constructor(options: OyarsaOptions) {
     this.config = options.config;
     this.repoRoot = options.repoRoot;
+    this.sornReviewOnComplete = options.sornReviewOnComplete ?? true;
 
     const stateDir = options.config.repoRoot
       ? `${options.repoRoot}/${options.config.repoRoot}`
@@ -173,10 +177,13 @@ export class Oyarsa {
       this.stateManager.setField(fieldName, field);
     }
 
-    if (state.currentTaskId) {
-      const newStatus = state.status === 'completed' ? 'done' : 'blocked';
-      this.beadsManager.updateTask(state.currentTaskId, { status: newStatus }).catch((err) => {
-        logError('Failed to update task status after Eldil completion', err);
+    if (state.currentTaskId && state.status === 'completed') {
+      this.completeTaskWithReview(state.currentTaskId, field?.path ?? this.repoRoot).catch((err) => {
+        logError('Failed to complete task with review', err);
+      });
+    } else if (state.currentTaskId) {
+      this.beadsManager.updateTask(state.currentTaskId, { status: 'blocked' }).catch((err) => {
+        logError('Failed to update task status after Eldil failure', err);
       });
     }
 
@@ -185,6 +192,61 @@ export class Oyarsa {
       status: state.status,
       taskId: state.currentTaskId,
     });
+  }
+
+  private async completeTaskWithReview(taskId: string, fieldPath: string): Promise<void> {
+    if (!this.sornReviewOnComplete) {
+      await this.beadsManager.updateTask(taskId, { status: 'done' });
+      logInfo('Task completed without Sorn review', { taskId });
+      return;
+    }
+
+    logInfo('Running Sorn review before task completion', { taskId });
+
+    const reviewResult = await this.sornReviewer.reviewTask(taskId, fieldPath);
+
+    if (!reviewResult.success) {
+      logWarn('Sorn review failed, completing task anyway', {
+        taskId,
+        error: reviewResult.error,
+      });
+      await this.beadsManager.updateTask(taskId, { status: 'done' });
+      return;
+    }
+
+    if (this.sornReviewer.hasBlockingIssues(reviewResult)) {
+      logWarn('Sorn found critical issues, blocking task completion', {
+        taskId,
+        issueCount: reviewResult.issues.length,
+        criticalIssues: reviewResult.issues.filter((i) => i.severity === 'critical'),
+      });
+      await this.beadsManager.updateTask(taskId, {
+        status: 'blocked',
+        labels: ['sorn-blocked'],
+      });
+      return;
+    }
+
+    if (reviewResult.issues.length > 0) {
+      logInfo('Sorn found non-blocking issues', {
+        taskId,
+        issueCount: reviewResult.issues.length,
+        summary: reviewResult.summary,
+      });
+    }
+
+    await this.beadsManager.updateTask(taskId, { status: 'done' });
+    logInfo('Task completed after Sorn review', { taskId, issueCount: reviewResult.issues.length });
+  }
+
+  async runSornReview(fieldName?: string): Promise<SornReviewResult> {
+    const field = fieldName
+      ? this.stateManager.getField(fieldName)
+      : this.stateManager.getField(this.stateManager.getActiveField());
+
+    const fieldPath = field?.path ?? this.repoRoot;
+
+    return this.sornReviewer.reviewCurrentChanges(fieldPath, { field: field?.name });
   }
 
   async spawnEldilForTask(

@@ -135,15 +135,8 @@ export async function detectService(
   };
 }
 
-function detectPackageManager(repoPath: string): string {
-  const bunLock = Bun.file(path.join(repoPath, 'bun.lock'));
-  const bunLockb = Bun.file(path.join(repoPath, 'bun.lockb'));
-  const pnpmLock = Bun.file(path.join(repoPath, 'pnpm-lock.yaml'));
-  const yarnLock = Bun.file(path.join(repoPath, 'yarn.lock'));
-
-  // Synchronous check not ideal but keeps it simple
-  // In practice these are fast filesystem checks
-  return 'pnpm'; // Default to pnpm for GoDaddy projects
+function detectPackageManager(_repoPath: string): string {
+  return 'pnpm';
 }
 
 export async function detectPackageManagerAsync(repoPath: string): Promise<string> {
