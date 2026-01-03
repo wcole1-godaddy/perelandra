@@ -8,6 +8,7 @@ import type {
   HealthCheckResult,
   HnauManagerOptions,
 } from '../types/hnau';
+import { TmuxManager } from './tmux';
 
 const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 30000;
 const DEFAULT_STOP_TIMEOUT_MS = 5000;
@@ -17,6 +18,7 @@ export class HnauManager {
   private runtimes: Map<string, HnauRuntime> = new Map();
   private healthCheckTimers: Map<string, Timer> = new Map();
   private options: Required<HnauManagerOptions>;
+  private tmux?: TmuxManager;
 
   constructor(config: PerelandraConfig, options: HnauManagerOptions = {}) {
     this.config = config;
@@ -25,6 +27,10 @@ export class HnauManager {
       defaultStopTimeoutMs: options.defaultStopTimeoutMs ?? DEFAULT_STOP_TIMEOUT_MS,
     };
     this.initializeRuntimes();
+  }
+
+  setTmuxManager(tmux: TmuxManager): void {
+    this.tmux = tmux;
   }
 
   private initializeRuntimes(): void {
@@ -64,27 +70,40 @@ export class HnauManager {
     try {
       const hnauConfig = runtime.config;
       const workingDir = `${options.field}/${hnauConfig.root}`;
-
-      const env = {
-        ...process.env,
-        ...hnauConfig.env,
-        ...options.env,
-      };
-
       const devCommand = hnauConfig.devCommand;
-      const proc = Bun.spawn(['sh', '-c', devCommand], {
-        cwd: workingDir,
-        env,
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
+
+      if (this.tmux && options.useTmux !== false) {
+        const fieldName = options.field.split('/').pop() ?? 'main';
+        const paneResult = await this.tmux.createHnauPane(fieldName, id, { cwd: workingDir });
+
+        if (paneResult.success && paneResult.data) {
+          runtime.tmuxPane = `${paneResult.data.window}.${paneResult.data.pane}`;
+          await this.tmux.sendKeys(
+            { window: paneResult.data.window, pane: paneResult.data.pane },
+            devCommand
+          );
+        }
+      } else {
+        const env = {
+          ...process.env,
+          ...hnauConfig.env,
+          ...options.env,
+        };
+
+        const proc = Bun.spawn(['sh', '-c', devCommand], {
+          cwd: workingDir,
+          env,
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+
+        runtime.process = {
+          pid: proc.pid,
+          startedAt: new Date().toISOString(),
+        };
+      }
 
       runtime.status = 'running';
-      runtime.process = {
-        pid: proc.pid,
-        startedAt: new Date().toISOString(),
-      };
-
       this.runtimes.set(id, runtime);
 
       if (hnauConfig.healthCheck) {

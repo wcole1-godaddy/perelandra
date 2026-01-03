@@ -29,6 +29,7 @@ export interface HnauStartOptions {
   field: string;
   env?: Record<string, string>;
   useDocker?: boolean;
+  useTmux?: boolean;
 }
 
 export interface HnauStopOptions {

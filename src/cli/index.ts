@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { loadConfig, validateConfig, formatConfigError } from '../core/config';
 import { createFieldCommand } from './commands/field';
 import { createHnauCommand } from './commands/hnau';
+import { createTaskCommand } from './commands/task';
 
 const program = new Command();
 
@@ -62,49 +63,7 @@ program
 
 program.addCommand(createFieldCommand());
 program.addCommand(createHnauCommand());
-
-const taskCmd = program
-  .command('task')
-  .description('Manage tasks (Beads integration)');
-
-taskCmd
-  .command('new')
-  .description('Create a new task')
-  .option('--field <name>', 'Field context')
-  .option('--hnau <id>', 'Associated Hnau')
-  .action(async (_options: { field?: string; hnau?: string }) => {
-    console.log('TODO: Create new task');
-  });
-
-taskCmd
-  .command('list')
-  .description('List tasks')
-  .option('--field <name>', 'Field context')
-  .option('--status <status>', 'Filter by status')
-  .action(async (_options: { field?: string; status?: string }) => {
-    console.log('TODO: List tasks');
-  });
-
-taskCmd
-  .command('show <id>')
-  .description('Show task details')
-  .action(async (id: string) => {
-    console.log(`TODO: Show task ${id}`);
-  });
-
-taskCmd
-  .command('set-status <id> <status>')
-  .description('Update task status')
-  .action(async (id: string, status: string) => {
-    console.log(`TODO: Set task ${id} status to ${status}`);
-  });
-
-taskCmd
-  .command('sync')
-  .description('Sync tasks with Beads')
-  .action(async () => {
-    console.log('TODO: Sync tasks');
-  });
+program.addCommand(createTaskCommand());
 
 const eldilCmd = program
   .command('eldil')
