@@ -250,11 +250,16 @@ export const SplitBorder = {
   border: ['left' as const, 'right' as const],
   customBorderChars: {
     vertical: '┃',
-    horizontal: '',
-    topLeft: '',
-    topRight: '',
-    bottomLeft: '',
-    bottomRight: '',
+    horizontal: ' ',
+    topLeft: ' ',
+    topRight: ' ',
+    bottomLeft: ' ',
+    bottomRight: ' ',
+    topT: ' ',
+    bottomT: ' ',
+    leftT: ' ',
+    rightT: ' ',
+    cross: ' ',
   },
 };
 
@@ -262,11 +267,16 @@ export const LeftBorder = {
   border: ['left' as const],
   customBorderChars: {
     vertical: '┃',
-    horizontal: '',
-    topLeft: '',
-    topRight: '',
-    bottomLeft: '',
-    bottomRight: '',
+    horizontal: ' ',
+    topLeft: ' ',
+    topRight: ' ',
+    bottomLeft: ' ',
+    bottomRight: ' ',
+    topT: ' ',
+    bottomT: ' ',
+    leftT: ' ',
+    rightT: ' ',
+    cross: ' ',
   },
 };
 

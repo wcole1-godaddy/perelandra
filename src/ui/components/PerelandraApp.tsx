@@ -12,7 +12,7 @@ import type { Oyarsa } from '../../core/oyarsa';
 import { TmuxManager } from '../../domain/tmux';
 import { HnauManager } from '../../domain/hnau';
 import { logInfo } from '../../logging/pino';
-import { ThemeProvider, useTheme } from '../hooks/useTheme';
+import { ThemeProvider } from '../hooks/useTheme';
 import { type ThemeFlavorName, detectDefaultFlavor } from '../theme';
 
 export interface PerelandraAppProps {
@@ -23,7 +23,6 @@ export interface PerelandraAppProps {
 
 function loadThemePreference(repoRoot: string): ThemeFlavorName {
   try {
-    const stateFile = Bun.file(`${repoRoot}/.perelandra-state.json`);
     const content = require('fs').readFileSync(`${repoRoot}/.perelandra-state.json`, 'utf-8');
     const data = JSON.parse(content);
     if (data.themeFlavor && ['mocha', 'macchiato', 'frappe', 'latte'].includes(data.themeFlavor)) {
