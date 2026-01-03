@@ -246,3 +246,57 @@ export async function isGitRepo(path: string): Promise<boolean> {
     return false;
   }
 }
+
+export interface CommitInfo {
+  sha: string;
+  shortSha: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+export async function getRecentCommits(
+  cwd: string = process.cwd(),
+  options: { since?: Date; limit?: number } = {}
+): Promise<GitResult<CommitInfo[]>> {
+  try {
+    const args = ['git', 'log', '--format=%H|%h|%s|%an|%aI'];
+
+    if (options.since) {
+      args.push(`--since=${options.since.toISOString()}`);
+    }
+
+    if (options.limit) {
+      args.push(`-n`, String(options.limit));
+    }
+
+    const result = await $`${args}`.cwd(cwd).text();
+    const commits: CommitInfo[] = [];
+
+    for (const line of result.trim().split('\n')) {
+      if (!line) continue;
+      const [sha, shortSha, message, author, date] = line.split('|');
+      if (sha && shortSha) {
+        commits.push({
+          sha: sha.trim(),
+          shortSha: shortSha.trim(),
+          message: message?.trim() ?? '',
+          author: author?.trim() ?? '',
+          date: date?.trim() ?? '',
+        });
+      }
+    }
+
+    return { success: true, data: commits };
+  } catch (err) {
+    return { success: false, error: 'Failed to get recent commits' };
+  }
+}
+
+export async function getHeadCommit(cwd: string = process.cwd()): Promise<GitResult<CommitInfo>> {
+  const result = await getRecentCommits(cwd, { limit: 1 });
+  if (!result.success || !result.data?.length) {
+    return { success: false, error: result.error ?? 'No commits found' };
+  }
+  return { success: true, data: result.data[0] };
+}

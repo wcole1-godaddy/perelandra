@@ -1,8 +1,8 @@
 import { $ } from 'bun';
-import type { BeadsTaskMetadata, BeadsTaskStatus, BeadsTaskCreator, TaskHistoryEntry } from '../types/beads';
+import type { BeadsTaskMetadata, BeadsTaskStatus, BeadsTaskCreator, TaskHistoryEntry, BeadsTaskType, EpicStatus, EpicGraph, EpicGraphLayer, EpicGraphNode } from '../types/beads';
 import type { HnauConfig, PerelandraConfig } from '../types/config';
 import type { FieldState } from '../types/runtime';
-import { FieldManager, type FieldInfo } from './field';
+import { FieldManager } from './field';
 
 export interface BeadsResult<T = void> {
   success: boolean;
@@ -131,6 +131,15 @@ export class BeadsManager {
     }
   }
 
+  async addCommitLabels(id: string, commitShas: string[]): Promise<BeadsResult> {
+    if (commitShas.length === 0) {
+      return { success: true };
+    }
+
+    const labels = commitShas.map((sha) => `commit:${sha}`);
+    return this.updateTask(id, { labels });
+  }
+
   async getTask(id: string): Promise<BeadsResult<BeadsTaskMetadata>> {
     try {
       const output = await $`bd show ${id} --json`.cwd(this.cwd).json();
@@ -211,6 +220,147 @@ export class BeadsManager {
     }
   }
 
+  async listEpics(): Promise<BeadsResult<BeadsTaskMetadata[]>> {
+    try {
+      const output = await $`bd list --type epic --json`.cwd(this.cwd).json();
+      const epics = this.parseTaskListOutput(output);
+      return { success: true, data: epics };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  async getEpicStatus(): Promise<BeadsResult<EpicStatus[]>> {
+    try {
+      const output = await $`bd epic status --json`.cwd(this.cwd).json();
+      const epicStatuses = this.parseEpicStatusOutput(output);
+      return { success: true, data: epicStatuses };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  async getEpicGraph(epicId: string): Promise<BeadsResult<EpicGraph>> {
+    try {
+      const output = await $`bd graph ${epicId} --json`.cwd(this.cwd).text();
+      const graph = this.parseEpicGraphOutput(output);
+      return { success: true, data: graph };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  async getEpicChildren(epicId: string): Promise<BeadsResult<BeadsTaskMetadata[]>> {
+    try {
+      const output = await $`bd list --parent ${epicId} --json`.cwd(this.cwd).json();
+      const children = this.parseTaskListOutput(output);
+      return { success: true, data: children };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  private parseEpicStatusOutput(output: unknown): EpicStatus[] {
+    if (!Array.isArray(output)) {
+      return [];
+    }
+
+    return output.map((item) => {
+      const obj = item as Record<string, unknown>;
+      const epicObj = obj.epic as Record<string, unknown> | undefined;
+      
+      return {
+        epic: epicObj ? this.parseTaskOutput(epicObj) : this.parseTaskOutput(obj),
+        totalChildren: typeof obj.total_children === 'number' ? obj.total_children : 0,
+        closedChildren: typeof obj.closed_children === 'number' ? obj.closed_children : 0,
+        eligibleForClose: obj.eligible_for_close === true,
+      };
+    });
+  }
+
+  private parseEpicGraphOutput(output: string): EpicGraph {
+    try {
+      const data = JSON.parse(output);
+      if (data.layers && Array.isArray(data.layers)) {
+        return {
+          layers: data.layers.map((layer: Record<string, unknown>) => ({
+            depth: typeof layer.depth === 'number' ? layer.depth : 0,
+            issues: Array.isArray(layer.issues)
+              ? layer.issues.map((issue: Record<string, unknown>) => ({
+                  id: String(issue.id ?? ''),
+                  title: String(issue.title ?? ''),
+                  status: this.normalizeStatus(issue.status),
+                }))
+              : [],
+          })),
+          totalIssues: typeof data.total_issues === 'number' ? data.total_issues : 0,
+        };
+      }
+    } catch {
+      // Not valid JSON, parse ASCII output
+    }
+
+    // Parse ASCII graph output (fallback)
+    return this.parseAsciiGraph(output);
+  }
+
+  private parseAsciiGraph(output: string): EpicGraph {
+    const lines = output.split('\n');
+    const issues: EpicGraphNode[] = [];
+    let currentLayer = 0;
+    const layers: EpicGraphLayer[] = [];
+
+    for (const line of lines) {
+      const layerMatch = line.match(/Layer (\d+)/);
+      if (layerMatch) {
+        currentLayer = parseInt(layerMatch[1], 10);
+        if (!layers[currentLayer]) {
+          layers[currentLayer] = { depth: currentLayer, issues: [] };
+        }
+        continue;
+      }
+
+      const issueMatch = line.match(/([○●◐✓✗])\s+(.+)/);
+      if (issueMatch) {
+        const statusChar = issueMatch[1];
+        let status: BeadsTaskStatus = 'todo';
+        if (statusChar === '✓') status = 'done';
+        else if (statusChar === '●' || statusChar === '◐') status = 'in-progress';
+        else if (statusChar === '✗') status = 'blocked';
+
+        const title = issueMatch[2].trim();
+        const idMatch = lines[lines.indexOf(line) + 1]?.match(/([\w-]+)/);
+        const id = idMatch?.[1] ?? '';
+
+        if (id && !layers[currentLayer]) {
+          layers[currentLayer] = { depth: currentLayer, issues: [] };
+        }
+
+        if (id && layers[currentLayer]) {
+          layers[currentLayer].issues.push({ id, title, status });
+          issues.push({ id, title, status });
+        }
+      }
+    }
+
+    return {
+      layers: layers.filter(Boolean),
+      totalIssues: issues.length,
+    };
+  }
+
   private parseHistoryOutput(output: unknown): TaskHistoryEntry[] {
     if (!Array.isArray(output)) {
       return [];
@@ -240,12 +390,26 @@ export class BeadsManager {
     return 'todo';
   }
 
+  private normalizeType(issueType: unknown): BeadsTaskType | undefined {
+    const t = String(issueType ?? '').toLowerCase();
+    if (t === 'epic') return 'epic';
+    if (t === 'bug') return 'bug';
+    if (t === 'task') return 'task';
+    return undefined;
+  }
+
   private parseTaskOutput(output: unknown): BeadsTaskMetadata {
     const obj = output as Record<string, unknown>;
     const rawLabels = Array.isArray(obj.labels) ? obj.labels.map(String) : [];
 
-    // Extract fieldName and hnauId from labels
-    const { fieldName, hnauId, labels } = this.extractFieldAndHnauFromLabels(rawLabels);
+    // Extract fieldName, hnauId, and commits from labels
+    const { fieldName, hnauId, commits, labels } = this.extractMetadataFromLabels(rawLabels);
+
+    // Merge commits from labels with any existing relatedCommits
+    const existingCommits = Array.isArray(obj.relatedCommits)
+      ? obj.relatedCommits.map(String)
+      : [];
+    const allCommits = [...new Set([...commits, ...existingCommits])];
 
     return {
       id: String(obj.id ?? ''),
@@ -254,22 +418,24 @@ export class BeadsManager {
       fieldName: fieldName ?? String(obj.fieldName ?? 'main'),
       hnauId: hnauId ?? (obj.hnauId ? String(obj.hnauId) : undefined),
       createdBy: (obj.createdBy as BeadsTaskCreator) ?? 'human',
-      createdAt: String(obj.createdAt ?? new Date().toISOString()),
+      createdAt: String(obj.createdAt ?? obj.created_at ?? new Date().toISOString()),
       status: this.normalizeStatus(obj.status),
       labels: labels.length > 0 ? labels : undefined,
-      relatedCommits: Array.isArray(obj.relatedCommits)
-        ? obj.relatedCommits.map(String)
-        : undefined,
+      relatedCommits: allCommits.length > 0 ? allCommits : undefined,
+      type: this.normalizeType(obj.issue_type ?? obj.type),
+      priority: typeof obj.priority === 'number' ? obj.priority : undefined,
     };
   }
 
-  private extractFieldAndHnauFromLabels(labels: string[]): {
+  private extractMetadataFromLabels(labels: string[]): {
     fieldName: string | undefined;
     hnauId: string | undefined;
+    commits: string[];
     labels: string[];
   } {
     let fieldName: string | undefined;
     let hnauId: string | undefined;
+    const commits: string[] = [];
     const remainingLabels: string[] = [];
 
     for (const label of labels) {
@@ -277,12 +443,14 @@ export class BeadsManager {
         fieldName = label.slice(6);
       } else if (label.startsWith('hnau:')) {
         hnauId = label.slice(5);
+      } else if (label.startsWith('commit:')) {
+        commits.push(label.slice(7));
       } else {
         remainingLabels.push(label);
       }
     }
 
-    return { fieldName, hnauId, labels: remainingLabels };
+    return { fieldName, hnauId, commits, labels: remainingLabels };
   }
 
   private parseTaskListOutput(

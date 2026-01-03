@@ -3,7 +3,7 @@ import { useTerminalDimensions } from '@opentui/react';
 import { FieldHeaderBar } from './FieldHeaderBar';
 import { StatusBar } from './StatusBar';
 import { HnauStatusGrid } from '../hnau/HnauStatusGrid';
-import { TaskKanban } from '../tasks/TaskKanban';
+import { TasksPane, type TasksViewMode } from '../tasks/TasksPane';
 import { EldilStatusList } from '../eldila/EldilStatusList';
 
 import type { PerelandraConfig } from '../../../types/config';
@@ -20,16 +20,26 @@ export interface RootLayoutProps {
   onHnauAction?: (action: HnauAction, hnauId: string) => void;
   onEldilAction?: (action: EldilAction, eldilId: string) => void;
   onTaskAction?: (action: TaskAction, taskId: string) => void;
+  onViewModeChange?: (mode: TasksViewMode) => void;
+  onEpicSelect?: (epicId: string) => void;
   navigationDisabled?: boolean;
 }
 
-export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauAction, onEldilAction, onTaskAction, navigationDisabled = false }: RootLayoutProps): React.ReactNode {
+export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauAction, onEldilAction, onTaskAction, onViewModeChange, onEpicSelect, navigationDisabled = false }: RootLayoutProps): React.ReactNode {
   const { width, height } = useTerminalDimensions();
 
   const panes: FocusPane[] = ['hnau', 'tasks', 'eldila'];
   const filteredEldila = state.eldila.filter((e) => e.state.fieldName === state.activeField);
+  
+  const getTasksItemCount = () => {
+    if (state.tasksViewMode === 'epics') {
+      return state.epics.length;
+    }
+    return state.tasks.filter((t) => t.fieldName === state.activeField || !t.fieldName).length;
+  };
+
   const itemCounts: Record<FocusPane, number> = {
-    tasks: state.tasks.filter((t) => t.fieldName === state.activeField || !t.fieldName).length,
+    tasks: getTasksItemCount(),
     hnau: state.hnauRuntimes.length,
     logs: state.logs.length,
     eldila: filteredEldila.length,
@@ -62,16 +72,39 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauActi
       }
     },
     onTaskAction: (action, index) => {
-      const filteredTasks = state.tasks.filter((t) => t.fieldName === state.activeField || !t.fieldName);
-      const columns = ['todo', 'in-progress', 'done'] as const;
-      const allTasksFlat = columns.flatMap((status) =>
-        filteredTasks.filter((t) => t.status === status)
-      );
-      const task = allTasksFlat[index];
-      if (task && onTaskAction) {
-        onTaskAction(action, task.id);
-      } else if (action === 'new' && onTaskAction) {
-        onTaskAction('new', '');
+      if (state.tasksViewMode === 'epics') {
+        const epic = state.epics[index];
+        if (epic && action === 'view' && onEpicSelect) {
+          onEpicSelect(epic.epic.id);
+        } else if (action === 'new' && onTaskAction) {
+          onTaskAction('new', '');
+        }
+      } else {
+        const filteredTasks = state.tasks.filter((t) => t.fieldName === state.activeField || !t.fieldName);
+        const columns = ['todo', 'in-progress', 'done'] as const;
+        const allTasksFlat = columns.flatMap((status) =>
+          filteredTasks.filter((t) => t.status === status)
+        );
+        const task = allTasksFlat[index];
+        if (task && onTaskAction) {
+          onTaskAction(action, task.id);
+        } else if (action === 'new' && onTaskAction) {
+          onTaskAction('new', '');
+        }
+      }
+    },
+    onToggleTasksView: () => {
+      if (onViewModeChange) {
+        const newMode = state.tasksViewMode === 'epics' ? 'issues' : 'epics';
+        onViewModeChange(newMode);
+      }
+    },
+    onShowEpicGraph: (index) => {
+      if (state.tasksViewMode === 'epics' && onEpicSelect) {
+        const epic = state.epics[index];
+        if (epic) {
+          onEpicSelect(epic.epic.id);
+        }
       }
     },
     disabled: navigationDisabled,
@@ -113,10 +146,15 @@ export function RootLayout({ config, state, onFieldSwitch, onCommand, onHnauActi
 
         {/* Right column: Tasks + Eldila stacked */}
         <box style={{ flexDirection: 'column', width: rightColumnWidth }}>
-          <TaskKanban
+          <TasksPane
             tasks={state.tasks}
+            epics={state.epics}
             fieldName={state.activeField}
+            viewMode={state.tasksViewMode}
+            selectedEpicId={state.filteredEpicId ?? undefined}
             onAction={onCommand}
+            onViewModeChange={onViewModeChange ?? (() => {})}
+            onEpicSelect={onEpicSelect}
             focused={navigation.focusedPane === 'tasks'}
             selectedIndex={navigation.getSelectedIndex('tasks')}
           />

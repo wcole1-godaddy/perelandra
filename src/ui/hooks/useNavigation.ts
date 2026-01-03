@@ -31,11 +31,13 @@ export interface UseNavigationOptions {
   onHnauAction?: (action: HnauAction, index: number) => void;
   onEldilAction?: (action: EldilAction, index: number) => void;
   onTaskAction?: (action: TaskAction, index: number) => void;
+  onToggleTasksView?: () => void;
+  onShowEpicGraph?: (index: number) => void;
   disabled?: boolean;
 }
 
 export function useNavigation(options: UseNavigationOptions): NavigationHandlers {
-  const { panes, itemCounts, onEnter, onAction, onHnauAction, onEldilAction, onTaskAction, disabled = false } = options;
+  const { panes, itemCounts, onEnter, onAction, onHnauAction, onEldilAction, onTaskAction, onToggleTasksView, onShowEpicGraph, disabled = false } = options;
 
   const [focusedPane, setFocusedPane] = useState<FocusPane>(panes[0] ?? 'tasks');
   const [selectedIndices, setSelectedIndices] = useState<Map<FocusPane, number>>(
@@ -174,6 +176,14 @@ export function useNavigation(options: UseNavigationOptions): NavigationHandlers
       }
       if (event.name === 'c') {
         onTaskAction('close', selectedIndex);
+        return;
+      }
+      if (event.name === 'v' && onToggleTasksView) {
+        onToggleTasksView();
+        return;
+      }
+      if (event.name === 'g' && onShowEpicGraph) {
+        onShowEpicGraph(selectedIndex);
         return;
       }
     }

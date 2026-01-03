@@ -6,10 +6,12 @@ import { NewTaskDialog, type NewTaskData } from './tasks/NewTaskDialog';
 import { NewEldilDialog, type NewEldilData } from './eldila/NewEldilDialog';
 import { EldilDetailDialog } from './eldila/EldilDetailDialog';
 import { TaskDetailDialog } from './tasks/TaskDetailDialog';
-import type { BeadsTaskStatus } from '../../types/beads';
+import { EpicDetailDialog } from './tasks/EpicDetailDialog';
+import type { BeadsTaskStatus, EpicStatus, EpicGraph } from '../../types/beads';
 import type { PerelandraConfig } from '../../types/config';
 import type { FieldInfo } from '../../domain/field';
 import type { BeadsTaskMetadata } from '../../types/beads';
+import type { TasksViewMode } from './tasks/TasksPane';
 import type { HnauRuntime, HnauStatus } from '../../types/hnau';
 import type { EldilRuntime } from '../../types/eldil';
 import type { HnauAction, EldilAction, TaskAction } from '../hooks/useNavigation';
@@ -20,7 +22,7 @@ import { logInfo } from '../../logging/pino';
 import { ThemeProvider } from '../hooks/useTheme';
 import { type ThemeFlavorName, detectDefaultFlavor } from '../theme';
 import { useEventBusMulti } from '../hooks/useEventBus';
-import { eventBus, type LogMessageEvent } from '../../core/events';
+import type { LogMessageEvent } from '../../core/events';
 
 function formatLogMessage(ev: LogMessageEvent): string {
   const timestamp = ev.timestamp ?? new Date().toISOString();
@@ -71,6 +73,7 @@ export interface AppState {
   hnauRuntimes: HnauRuntime[];
   eldila: EldilRuntime[];
   tasks: BeadsTaskMetadata[];
+  epics: EpicStatus[];
   logs: string[];
   showCommandPalette: boolean;
   showNewTaskDialog: boolean;
@@ -79,6 +82,11 @@ export interface AppState {
   selectedEldilId: string | null;
   showTaskDetailDialog: boolean;
   selectedTaskId: string | null;
+  showEpicDetailDialog: boolean;
+  selectedEpicId: string | null;
+  epicGraph: EpicGraph | null;
+  tasksViewMode: TasksViewMode;
+  filteredEpicId: string | null;
   tmuxAvailable: boolean;
   initialized: boolean;
   themeFlavor: ThemeFlavorName;
@@ -99,6 +107,7 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
       })),
       eldila: [],
       tasks: [],
+      epics: [],
       logs: [],
       showCommandPalette: false,
       showNewTaskDialog: false,
@@ -107,6 +116,11 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
       selectedEldilId: null,
       showTaskDetailDialog: false,
       selectedTaskId: null,
+      showEpicDetailDialog: false,
+      selectedEpicId: null,
+      epicGraph: null,
+      tasksViewMode: 'epics' as TasksViewMode,
+      filteredEpicId: null,
       tmuxAvailable: false,
       initialized: false,
       themeFlavor: savedTheme,
@@ -122,6 +136,7 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
       
       let fields: FieldInfo[] = [];
       let tasks: BeadsTaskMetadata[] = [];
+      let epics: EpicStatus[] = [];
       let eldila: EldilRuntime[] = [];
 
       if (oyarsa) {
@@ -133,11 +148,17 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
           tasks = tasksResult.data;
         }
 
+        const epicsResult = await beadsManager.getEpicStatus();
+        if (epicsResult.success && epicsResult.data) {
+          epics = epicsResult.data;
+        }
+
         eldila = oyarsa.getEldilManager().list();
         
         logInfo('TUI initialized with real data', {
           fieldCount: fields.length,
           taskCount: tasks.length,
+          epicCount: epics.length,
           eldilCount: eldila.length,
         });
       }
@@ -147,6 +168,7 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         activeField: initialActiveField,
         fields,
         tasks,
+        epics,
         eldila,
         tmuxAvailable: available,
         initialized: true,
@@ -491,6 +513,41 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
     setState((prev) => ({ ...prev, showTaskDetailDialog: false, selectedTaskId: null }));
   }, []);
 
+  const closeEpicDetailDialog = useCallback(() => {
+    setState((prev) => ({ ...prev, showEpicDetailDialog: false, selectedEpicId: null, epicGraph: null }));
+  }, []);
+
+  const handleViewModeChange = useCallback((mode: TasksViewMode) => {
+    setState((prev) => ({ ...prev, tasksViewMode: mode }));
+  }, []);
+
+  const handleEpicViewTasks = useCallback((epicId: string) => {
+    setState((prev) => ({
+      ...prev,
+      tasksViewMode: 'issues',
+      filteredEpicId: epicId,
+      showEpicDetailDialog: false,
+      selectedEpicId: null,
+      epicGraph: null,
+    }));
+    addLog(`[EPIC] Viewing tasks for ${epicId}`);
+  }, [addLog]);
+
+  const showEpicDetail = useCallback(
+    async (epicId: string) => {
+      if (!oyarsa) return;
+      const beadsManager = oyarsa.getBeadsManager();
+
+      setState((prev) => ({ ...prev, showEpicDetailDialog: true, selectedEpicId: epicId }));
+
+      const graphResult = await beadsManager.getEpicGraph(epicId);
+      if (graphResult.success && graphResult.data) {
+        setState((prev) => ({ ...prev, epicGraph: graphResult.data! }));
+      }
+    },
+    [oyarsa]
+  );
+
   const handleTaskStatusChange = useCallback(
     async (taskId: string, status: BeadsTaskStatus) => {
       if (!oyarsa) {
@@ -630,7 +687,9 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         onHnauAction={handleHnauAction}
         onEldilAction={handleEldilAction}
         onTaskAction={handleTaskAction}
-        navigationDisabled={state.showCommandPalette || state.showNewTaskDialog || state.showNewEldilDialog || state.showEldilDetailDialog || state.showTaskDetailDialog}
+        onViewModeChange={handleViewModeChange}
+        onEpicSelect={showEpicDetail}
+        navigationDisabled={state.showCommandPalette || state.showNewTaskDialog || state.showNewEldilDialog || state.showEldilDetailDialog || state.showTaskDetailDialog || state.showEpicDetailDialog}
       />
       <CommandPalette
         commands={commands}
@@ -663,6 +722,14 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         isOpen={state.showTaskDetailDialog}
         task={state.tasks.find((t) => t.id === state.selectedTaskId) ?? null}
         onClose={closeTaskDetailDialog}
+        onStatusChange={handleTaskStatusChange}
+      />
+      <EpicDetailDialog
+        isOpen={state.showEpicDetailDialog}
+        epicStatus={state.epics.find((e) => e.epic.id === state.selectedEpicId) ?? null}
+        graph={state.epicGraph}
+        onClose={closeEpicDetailDialog}
+        onViewTasks={handleEpicViewTasks}
         onStatusChange={handleTaskStatusChange}
       />
     </ThemeProvider>

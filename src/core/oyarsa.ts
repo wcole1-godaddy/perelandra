@@ -10,6 +10,7 @@ import { SornReviewer } from '../domain/sorn';
 import { TmuxManager } from '../domain/tmux';
 import { Maleldil } from '../domain/maleldil';
 import { Witness } from '../domain/witness';
+import { getHeadCommit } from '../domain/git';
 import { logInfo, logWarn, logError } from '../logging/pino';
 import type { SornReviewResult } from '../types/sorn';
 import { eventBus } from './events';
@@ -264,8 +265,11 @@ export class Oyarsa {
   }
 
   private async completeTaskWithReview(taskId: string, fieldPath: string): Promise<void> {
-    const task = await this.beadsManager.getTask(taskId);
-    const fieldName = task?.fieldName ?? '';
+    const taskResult = await this.beadsManager.getTask(taskId);
+    const fieldName = taskResult.data?.fieldName ?? '';
+
+    // Record the HEAD commit for this task
+    await this.recordTaskCommit(taskId, fieldPath);
 
     if (!this.sornReviewOnComplete) {
       await this.beadsManager.updateTask(taskId, { status: 'done' });
@@ -337,6 +341,21 @@ export class Oyarsa {
     const fieldPath = field?.path ?? this.repoRoot;
 
     return this.sornReviewer.reviewCurrentChanges(fieldPath, { field: field?.name });
+  }
+
+  private async recordTaskCommit(taskId: string, fieldPath: string): Promise<void> {
+    const commitResult = await getHeadCommit(fieldPath);
+    if (!commitResult.success || !commitResult.data) {
+      logWarn('Could not get HEAD commit for task', { taskId, error: commitResult.error });
+      return;
+    }
+
+    const result = await this.beadsManager.addCommitLabels(taskId, [commitResult.data.sha]);
+    if (!result.success) {
+      logWarn('Failed to add commit label to task', { taskId, error: result.error });
+    } else {
+      logInfo('Recorded commit for task', { taskId, commit: commitResult.data.shortSha });
+    }
   }
 
   async spawnEldilForTask(
