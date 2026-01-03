@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { RootLayout } from './layout/RootLayout';
 import { CommandPalette, createDefaultCommands } from './common/CommandPalette';
 import { NewTaskDialog, type NewTaskData } from './tasks/NewTaskDialog';
+import { NewEldilDialog, type NewEldilData } from './eldila/NewEldilDialog';
 import { TaskDetailDialog } from './tasks/TaskDetailDialog';
 import type { BeadsTaskStatus } from '../../types/beads';
 import type { PerelandraConfig } from '../../types/config';
@@ -72,6 +73,7 @@ export interface AppState {
   logs: string[];
   showCommandPalette: boolean;
   showNewTaskDialog: boolean;
+  showNewEldilDialog: boolean;
   showTaskDetailDialog: boolean;
   selectedTaskId: string | null;
   tmuxAvailable: boolean;
@@ -97,6 +99,7 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
       logs: [],
       showCommandPalette: false,
       showNewTaskDialog: false,
+      showNewEldilDialog: false,
       showTaskDetailDialog: false,
       selectedTaskId: null,
       tmuxAvailable: false,
@@ -235,7 +238,8 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
       addLog(`[ELDIL] ${action} ${eldilId || '(new)'}`);
 
       if (action === 'spawn') {
-        addLog('[ELDIL] Use command palette to spawn new Eldil with task');
+        setState((prev) => ({ ...prev, showNewEldilDialog: true }));
+        return;
       } else if (action === 'stop' && eldilId) {
         const result = await eldilManager.stop(eldilId);
         if (result.success) {
@@ -407,6 +411,48 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
     setState((prev) => ({ ...prev, showNewTaskDialog: false }));
   }, []);
 
+  const closeNewEldilDialog = useCallback(() => {
+    setState((prev) => ({ ...prev, showNewEldilDialog: false }));
+  }, []);
+
+  const handleSpawnEldil = useCallback(
+    async (data: NewEldilData) => {
+      if (!oyarsa) {
+        addLog('[WARN] Cannot spawn eldil: oyarsa not available');
+        return;
+      }
+
+      const activeFieldInfo = state.fields.find((f) => f.name === state.activeField);
+      if (!activeFieldInfo) {
+        addLog(`[ERROR] Cannot spawn eldil: field ${state.activeField} not found`);
+        return;
+      }
+
+      addLog(`[ELDIL] Spawning ${data.tool} agent...`);
+
+      const eldilManager = oyarsa.getEldilManager();
+      const result = await eldilManager.spawn({
+        fieldName: state.activeField,
+        fieldPath: activeFieldInfo.path,
+        taskId: data.taskId,
+        prompt: data.prompt,
+        tool: data.tool,
+        useTmux: state.tmuxAvailable,
+      });
+
+      if (result.success && result.data) {
+        setState((prev) => ({
+          ...prev,
+          eldila: [...prev.eldila, result.data!],
+        }));
+        addLog(`[ELDIL] Spawned ${result.data.id}${data.taskId ? ` for task ${data.taskId}` : ''}`);
+      } else {
+        addLog(`[ERROR] Failed to spawn eldil: ${result.error}`);
+      }
+    },
+    [oyarsa, addLog, state.activeField, state.fields, state.tmuxAvailable]
+  );
+
   const closeTaskDetailDialog = useCallback(() => {
     setState((prev) => ({ ...prev, showTaskDetailDialog: false, selectedTaskId: null }));
   }, []);
@@ -550,7 +596,7 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         onHnauAction={handleHnauAction}
         onEldilAction={handleEldilAction}
         onTaskAction={handleTaskAction}
-        navigationDisabled={state.showCommandPalette || state.showNewTaskDialog || state.showTaskDetailDialog}
+        navigationDisabled={state.showCommandPalette || state.showNewTaskDialog || state.showNewEldilDialog || state.showTaskDetailDialog}
       />
       <CommandPalette
         commands={commands}
@@ -563,6 +609,15 @@ export function PerelandraApp({ config, repoRoot, oyarsa }: PerelandraAppProps):
         onClose={closeNewTaskDialog}
         onCreate={handleCreateTask}
         fieldName={state.activeField}
+      />
+      <NewEldilDialog
+        isOpen={state.showNewEldilDialog}
+        onClose={closeNewEldilDialog}
+        onSpawn={handleSpawnEldil}
+        fieldName={state.activeField}
+        availableTasks={state.tasks
+          .filter((t) => (t.fieldName === state.activeField || !t.fieldName) && t.status !== 'done')
+          .map((t) => ({ id: t.id, title: t.title }))}
       />
       <TaskDetailDialog
         isOpen={state.showTaskDetailDialog}

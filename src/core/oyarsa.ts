@@ -9,6 +9,7 @@ import { BeadsManager } from '../domain/beads';
 import { SornReviewer } from '../domain/sorn';
 import { TmuxManager } from '../domain/tmux';
 import { Maleldil } from '../domain/maleldil';
+import { Witness } from '../domain/witness';
 import { logInfo, logWarn, logError } from '../logging/pino';
 import type { SornReviewResult } from '../types/sorn';
 import { eventBus } from './events';
@@ -39,6 +40,7 @@ export class Oyarsa {
   private sornReviewer: SornReviewer;
   private tmuxManager: TmuxManager;
   private maleldil: Maleldil;
+  private witness: Witness;
 
   private started = false;
   private sornReviewOnComplete: boolean;
@@ -68,6 +70,11 @@ export class Oyarsa {
     this.sornReviewer = new SornReviewer();
     this.tmuxManager = new TmuxManager();
     this.maleldil = new Maleldil(options.config.logs, this.repoRoot);
+    this.witness = new Witness({
+      stateManager: this.stateManager,
+      hnauManager: this.hnauManager,
+      beadsManager: this.beadsManager,
+    });
 
     this.hnauManager.setTmuxManager(this.tmuxManager);
     this.eldilManager.setTmuxManager(this.tmuxManager);
@@ -97,6 +104,7 @@ export class Oyarsa {
       await this.recoverOrphanedEldila();
 
       this.maleldil.startAutoRotation(60000);
+      this.witness.start();
 
       this.started = true;
       logInfo('Oyarsa started successfully');
@@ -130,6 +138,10 @@ export class Oyarsa {
       this.tmuxManager.setSessionName(this.globalConfig.tmux.sessionName);
     }
 
+    if (this.globalConfig.witness) {
+      this.witness.updateConfig(this.globalConfig.witness);
+    }
+
     logInfo('Applied global DeepHeaven config', {
       sornModel: this.globalConfig.sorn?.model,
       maxWorkers: this.globalConfig.eldil?.maxTotalWorkers,
@@ -152,6 +164,7 @@ export class Oyarsa {
     this.hnauManager.dispose();
     this.eldilManager.dispose();
     this.maleldil.dispose();
+    this.witness.dispose();
 
     this.started = false;
     logInfo('Oyarsa shutdown complete');
@@ -464,6 +477,10 @@ export class Oyarsa {
 
   getMaleldil(): Maleldil {
     return this.maleldil;
+  }
+
+  getWitness(): Witness {
+    return this.witness;
   }
 
   getStateManager(): StateManager {

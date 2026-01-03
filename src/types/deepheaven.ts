@@ -1,4 +1,5 @@
 import type { SornConfig } from './sorn';
+import type { WitnessConfig } from './witness';
 
 export interface DeepHeavenConfig {
   defaultModel?: string;
@@ -21,6 +22,7 @@ export interface DeepHeavenConfig {
     maxWorkersPerField?: number;
     maxTotalWorkers?: number;
   };
+  witness?: WitnessConfig;
   aliases?: Record<string, string>;
 }
 

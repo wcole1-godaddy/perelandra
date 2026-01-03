@@ -217,6 +217,7 @@ export class TmuxManager {
     try {
       const target = `${this.sessionName}:${window}`;
       const output = await $`tmux list-panes -t ${target} -F '#{pane_index}|#{pane_active}|#{pane_width}|#{pane_height}|#{pane_pid}|#{pane_current_command}'`
+        .quiet()
         .text();
 
       const panes: TmuxPane[] = output
@@ -263,7 +264,7 @@ export class TmuxManager {
         args.push('-c', options.cwd);
       }
 
-      await $`${args}`;
+      await $`${args}`.quiet();
 
       const panesResult = await this.listPanes(window);
       if (panesResult.success && panesResult.data) {

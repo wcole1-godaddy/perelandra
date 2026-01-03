@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import type { BeadsTaskStatus } from '../types/beads';
 import type { EldilStatus } from '../types/eldil';
 import type { HnauStatus } from '../types/hnau';
+import type { WitnessReport } from '../types/witness';
 
 export type TaskCreatedEvent = {
   taskId: string;
@@ -52,6 +53,15 @@ export type UIRefreshEvent = {
   target: 'tasks' | 'eldila' | 'hnau' | 'fields' | 'all';
 };
 
+export type WitnessReportEvent = WitnessReport;
+
+export type WitnessAlertEvent = {
+  type: 'stuck_eldil' | 'unhealthy_hnau';
+  severity: 'warning' | 'critical';
+  message: string;
+  targetId: string;
+};
+
 export type PerelandraEventMap = {
   'task:created': TaskCreatedEvent;
   'task:statusChanged': TaskStatusChangedEvent;
@@ -61,6 +71,8 @@ export type PerelandraEventMap = {
   'log:message': LogMessageEvent;
   'ui:notification': UINotificationEvent;
   'ui:refresh': UIRefreshEvent;
+  'witness:report': WitnessReportEvent;
+  'witness:alert': WitnessAlertEvent;
 };
 
 class PerelandraEventBus extends EventEmitter {

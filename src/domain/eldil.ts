@@ -113,16 +113,19 @@ export class EldilManager {
     };
 
     try {
+      let spawnResult: EldilResult;
+
       if (this.options.useTmux && this.tmux && options.useTmux !== false) {
-        const spawnResult = await this.spawnInTmux(runtime, options);
+        spawnResult = await this.spawnInTmux(runtime, options);
         if (!spawnResult.success) {
-          return { success: false, error: spawnResult.error };
+          spawnResult = await this.spawnDirect(runtime, options);
         }
       } else {
-        const spawnResult = await this.spawnDirect(runtime, options);
-        if (!spawnResult.success) {
-          return { success: false, error: spawnResult.error };
-        }
+        spawnResult = await this.spawnDirect(runtime, options);
+      }
+
+      if (!spawnResult.success) {
+        return { success: false, error: spawnResult.error };
       }
 
       this.runtimes.set(id, runtime);
