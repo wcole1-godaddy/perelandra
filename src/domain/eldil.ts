@@ -234,9 +234,8 @@ export class EldilManager {
     const escapedPrompt = prompt.replace(/'/g, "'\\''");
 
     if (config.tool === 'amp') {
-      const flags: string[] = ['--execute'];
-      if (config.streamJson) flags.push('--stream-json');
-      return `amp ${flags.join(' ')} '${escapedPrompt}'`;
+      const flags: string[] = ['--execute', '--stream-json'];
+      return `echo '${escapedPrompt}' | amp ${flags.join(' ')}`;
     } else if (config.tool === 'opencode') {
       const flags: string[] = ['-q'];
       if (config.model) flags.push('-m', config.model);
